@@ -7,24 +7,9 @@
 #include <utility>
 #include <string>
 
-#include "just_gtfs/just_gtfs.h"
 
 namespace raptor {
 
-    /**
-     * Type which contains a ``gtfs_id`` field of type string.
-     */
-    template <typename T>
-    concept GTFS_Entity = requires(T v)
-    {
-        { v.gtfs_id } -> std::same_as<std::string&>;
-    };
-
-    /**
-     * Maps an entity's ID to a reference wrapper of the given type.
-     */
-    template <typename T>
-    using reference_index = std::unordered_map<std::string, std::reference_wrapper<T>>;
 
     class Stop {
         friend bool operator==(const Stop& lhs, const Stop& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
@@ -48,10 +33,6 @@ namespace raptor {
         std::chrono::zoned_time<std::chrono::seconds> arrival_time;
         std::chrono::zoned_time<std::chrono::seconds> departure_time;
         const Stop& stop;
-
-        static StopTime from_gtfs(const gtfs::StopTime& stop_time, const std::chrono::year_month_day& service_day,
-                                  const std::chrono::time_zone* time_zone,
-                                  const reference_index<const Stop>& stop_index);
     };
 
     /**
@@ -65,9 +46,6 @@ namespace raptor {
     public:
         std::string gtfs_id;
         std::vector<std::chrono::year_month_day> active_days;
-
-        static std::unordered_map<std::string, Service> from_gtfs(const gtfs::Calendar& calendars,
-                                                                  const gtfs::CalendarDates& calendar_dates);
     };
 
     /**
@@ -83,17 +61,6 @@ namespace raptor {
         std::string shape_gtfs_id;
         std::string route_gtfs_id;
 
-        static Trip from_gtfs(const gtfs::Trip& gtfs_trip,
-                              const std::vector<std::reference_wrapper<const gtfs::StopTime>>& gtfs_stop_times,
-                              const std::chrono::year_month_day& service_day, const std::chrono::time_zone* time_zone,
-                              const reference_index<const Stop>&
-                              stop_index);
-        static std::vector<Trip> from_gtfs(const gtfs::Trips& gtfs_trips,
-                                           const std::unordered_map<std::string, Service>& services,
-                                           std::unordered_map<
-                                               std::string, std::vector<std::reference_wrapper<const gtfs::StopTime>>>
-                                           gtfs_stop_times, const std::chrono::time_zone* time_zone,
-                                           const reference_index<const Stop>& stop_index);
 
         /**
          * @return Departure time for the specific instantiation of this trip.
@@ -110,7 +77,7 @@ namespace raptor {
     class Route {
     public:
         Route(std::vector<Trip>&& trips, std::string short_name,
-                std::string long_name, std::string  gtfs_id) :
+              std::string long_name, std::string gtfs_id) :
             trips(std::move(trips)),
             short_name(std::move(short_name)),
             long_name(std::move(long_name)),
@@ -167,16 +134,13 @@ namespace raptor {
             stops(std::move(stops)), routes(std::move(routes)) {
         }
 
-        static Schedule from_gtfs(gtfs::Feed& feed, std::optional<int> day_limit = std::nullopt);
-
     private:
-        std::vector<Stop> stops;
-        std::vector<Agency> agencies;
-        std::vector<Route> routes;
+        const std::vector<Stop> stops;
+        const std::vector<Agency> agencies;
+        const std::vector<Route> routes;
     };
 
-    std::vector<Stop> from_gtfs(const gtfs::Stops& gtfs_stops);
-    Route from_gtfs(const gtfs::Route& route, std::vector<Trip>& trips);
+
 }
 
 template <>
@@ -186,11 +150,24 @@ struct std::hash<raptor::Stop> {
     }
 };
 
+//TODO: Make this work for both const and non-const types
 template <>
-struct std::hash<std::reference_wrapper<gtfs::Stop>> {
+struct std::hash<std::reference_wrapper<const raptor::Stop>> {
     size_t operator()(const std::reference_wrapper<const raptor::Stop>& stop) const {
         return std::hash<raptor::Stop>{}(stop);
     }
+};
+
+// template <typename T> requires std::is_convertible_v<T, const raptor::Stop>
+// struct std::hash<std::reference_wrapper<T>> {
+//     size_t operator()(const std::reference_wrapper<T>& stop) const {
+//         return std::hash<raptor::Stop>{}(stop);
+//     }
+// };
+
+template <>
+struct std::hash<std::vector<std::reference_wrapper<const raptor::Stop>>> {
+    size_t operator()(const std::vector<std::reference_wrapper<const raptor::Stop>>& stop) const;
 };
 
 #endif //SCHEDULE_H
