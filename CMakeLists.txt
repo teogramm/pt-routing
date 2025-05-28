@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.31)
+project(pt_routing)
+
+set(CMAKE_CXX_STANDARD 20)
+
+find_package(Boost REQUIRED COMPONENTS graph)
+
+include(FetchContent)
+FetchContent_Declare(
+        just_gtfs
+        GIT_REPOSITORY https://github.com/mapsme/just_gtfs
+        EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(just_gtfs)
+
+set(SOURCES src/raptor/raptor.cpp src/raptor/GTFSProvider.cpp src/raptor/Schedule.cpp)
+
+add_executable(pt_routing main.cpp ${SOURCES})
+target_link_libraries(pt_routing PRIVATE just_gtfs)
+target_include_directories(pt_routing PRIVATE include)
+target_compile_features(pt_routing PUBLIC cxx_std_20)
+
+add_executable(test test.cpp ${SOURCES})
+target_link_libraries(test PRIVATE just_gtfs ${Boost_LIBRARIES})
+target_include_directories(test PRIVATE include ${Boost_INCLUDE_DIRS})
