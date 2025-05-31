@@ -59,9 +59,9 @@ namespace raptor::gtfs {
         return time;
     }
 
-    std::vector<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops) {
+    std::deque<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops) {
         //TODO: Handle different location types
-        std::vector<Stop> stops;
+        std::deque<Stop> stops;
 
         auto is_platform = [](const ::gtfs::Stop& stop) {
             return stop.location_type == ::gtfs::StopLocationType::StopOrPlatform;
@@ -202,7 +202,7 @@ namespace raptor::gtfs {
                                 const std::unordered_map<std::string, Service>& services,
                                 const ::gtfs::StopTimes& gtfs_stop_times,
                                 const std::chrono::time_zone* time_zone,
-                                const std::vector<Stop>& stops) {
+                                const std::deque<Stop>& stops) {
         // Group stop times by the corresponding trip id
         auto stop_times_by_trip = std::unordered_map<
             std::string, std::vector<std::reference_wrapper<const ::gtfs::StopTime>>>{};
@@ -242,9 +242,9 @@ namespace raptor::gtfs {
         auto gtfs_route_index = std::unordered_map<std::string, std::reference_wrapper<const ::gtfs::Route>>{};
         gtfs_route_index.reserve(gtfs_routes.size());
         std::ranges::transform(gtfs_routes, std::inserter(gtfs_route_index, gtfs_route_index.begin()),
-            [](const ::gtfs::Route& route) {
-                return std::make_pair(route.route_id, std::cref(route));
-            });
+                               [](const ::gtfs::Route& route) {
+                                   return std::make_pair(route.route_id, std::cref(route));
+                               });
 
         // Each raptor route is considered unique if it contains the same stops and corresponds to the same gtfs id
         auto route_map = std::unordered_map<size_t, std::vector<Trip>>{};
@@ -292,5 +292,3 @@ namespace raptor::gtfs {
         return {std::move(stops), std::move(routes)};
     }
 }
-
-

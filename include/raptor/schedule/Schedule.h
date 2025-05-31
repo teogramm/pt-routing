@@ -1,6 +1,7 @@
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
 #include <chrono>
+#include <deque>
 #include <iosfwd>
 #include <set>
 #include <unordered_map>
@@ -130,12 +131,17 @@ namespace raptor {
     public:
         Schedule() = delete;
 
-        Schedule(std::vector<Stop>&& stops, std::vector<Route>&& routes):
+        Schedule(std::deque<Stop>&& stops, std::vector<Route>&& routes):
             stops(std::move(stops)), routes(std::move(routes)) {
         }
 
     private:
-        const std::vector<Stop> stops;
+        // Use a deque to ensure references stored in StopTimes are not invalidated
+        // A vector could be used instead and since it's stored as const the references should not be invalidated.
+        // In addition, the number of elements is known beforehand, so reserve calls can be made, ensuring that no
+        // reallocation happens.
+        // Nevertheless, using a deque is better, since it guarantees references will remain.
+        const std::deque<Stop> stops;
         const std::vector<Agency> agencies;
         const std::vector<Route> routes;
     };

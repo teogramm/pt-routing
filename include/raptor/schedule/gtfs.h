@@ -16,7 +16,7 @@ namespace raptor::gtfs {
      * @param gtfs_stops Stops collection provided by the just_gtfs library
      * @return Vector of raptor Stop objects.
      */
-    std::vector<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops);
+    std::deque<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops);
 
     /**
      * Creates Service objects from GTFS calendar and calendar_dates.
@@ -72,7 +72,7 @@ namespace raptor::gtfs {
                                 const std::unordered_map<std::string, Service>& services,
                                 const ::gtfs::StopTimes& gtfs_stop_times,
                                 const std::chrono::time_zone* time_zone,
-                                const std::vector<Stop>& stops);
+                                const std::deque<Stop>& stops);
 
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
                                 const std::vector<::gtfs::Route>& gtfs_routes);
