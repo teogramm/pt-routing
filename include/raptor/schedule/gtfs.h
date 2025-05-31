@@ -74,13 +74,16 @@ namespace raptor::gtfs {
      * @param stops All stop objects.
      * @return
      */
-    std::vector<Trip> from_gtfs(const ::gtfs::Trips& gtfs_trips,
-                                const std::unordered_map<std::string, Service>& services,
-                                const ::gtfs::StopTimes& gtfs_stop_times,
-                                const std::chrono::time_zone* time_zone,
-                                const std::deque<Stop>& stops);
+    std::pair<std::vector<Trip>, std::unordered_map<std::string, std::string>>
+    from_gtfs(const ::gtfs::Trips& gtfs_trips,
+              const std::unordered_map<std::string, Service>& services,
+              const ::gtfs::StopTimes& gtfs_stop_times,
+              const std::chrono::time_zone* time_zone,
+              const std::deque<Stop>& stops
+            );
 
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
+                                 std::unordered_map<std::string, std::string> trip_id_to_route_id,
                                  const std::vector<::gtfs::Route>& gtfs_routes);
 
     Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit = std::nullopt);

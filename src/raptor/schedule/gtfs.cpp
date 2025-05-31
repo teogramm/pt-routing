@@ -7,6 +7,11 @@
 // TODO: Change references to shared ptr
 namespace raptor::gtfs {
 
+    using route_id = std::string;
+    using calendar_id = std::string;
+    using trip_id = std::string;
+    using stop_id = std::string;
+
     /**
      * Create a map with values being const references.
      * Keys are selected using the given selector functions.
@@ -146,7 +151,7 @@ namespace raptor::gtfs {
         return weekdays;
     }
 
-    std::unordered_map<std::string, Service> from_gtfs(const ::gtfs::Calendar& calendars,
+    std::unordered_map<calendar_id, Service> from_gtfs(const ::gtfs::Calendar& calendars,
                                                        const ::gtfs::CalendarDates& calendar_dates) {
         using days_vector = std::vector<std::chrono::year_month_day>;
 
@@ -205,7 +210,7 @@ namespace raptor::gtfs {
     Trip from_gtfs(const ::gtfs::Trip& gtfs_trip,
                    const std::vector<std::reference_wrapper<const ::gtfs::StopTime>>& gtfs_stop_times,
                    const std::chrono::year_month_day& service_day, const std::chrono::time_zone* time_zone,
-                   const reference_index<std::string, const Stop>& stop_index) {
+                   const reference_index<stop_id, const Stop>& stop_index) {
         auto stop_times = std::vector<StopTime>{};
         stop_times.reserve(gtfs_stop_times.size());
         // Convert all the gtfs stop times to raptor stop times
@@ -214,22 +219,34 @@ namespace raptor::gtfs {
                                    auto& stop = stop_index.at(stop_time.stop_id);
                                    return from_gtfs(stop_time, service_day, time_zone, stop);
                                });
-        return {std::move(stop_times), gtfs_trip.trip_id, gtfs_trip.route_id, gtfs_trip.shape_id};
+        return {std::move(stop_times), gtfs_trip.trip_id, gtfs_trip.shape_id};
     }
 
-    std::vector<Trip> from_gtfs(const ::gtfs::Trips& gtfs_trips,
-                                const std::unordered_map<std::string, Service>& services,
-                                const ::gtfs::StopTimes& gtfs_stop_times,
-                                const std::chrono::time_zone* time_zone,
-                                const std::deque<Stop>& stops) {
-        // Group stop times by the corresponding trip id
+    std::unordered_map<trip_id, std::vector<std::reference_wrapper<const ::gtfs::StopTime>>>
+    group_stop_times_by_trip(const ::gtfs::StopTimes& gtfs_stop_times, const size_t n_trips) {
         auto stop_times_by_trip = std::unordered_map<
-            std::string, std::vector<std::reference_wrapper<const ::gtfs::StopTime>>>{};
-        stop_times_by_trip.reserve(gtfs_trips.size());
+            trip_id, std::vector<std::reference_wrapper<const ::gtfs::StopTime>>>{};
+        stop_times_by_trip.reserve(n_trips);
         for (const auto& stop_time : gtfs_stop_times) {
             auto& map_value = stop_times_by_trip[stop_time.trip_id];
             map_value.emplace_back(stop_time);
         }
+        // First sort each stop time by its sequence
+        for (auto& st_list : stop_times_by_trip | std::views::values) {
+            std::ranges::sort(st_list, std::ranges::less{}, &::gtfs::StopTime::stop_sequence);
+        }
+        return stop_times_by_trip;
+    }
+
+    std::pair<std::vector<Trip>, std::unordered_map<trip_id, route_id>>
+    from_gtfs(
+            const ::gtfs::Trips& gtfs_trips,
+            const std::unordered_map<std::string, Service>& services,
+            const ::gtfs::StopTimes& gtfs_stop_times,
+            const std::chrono::time_zone* time_zone,
+            const std::deque<Stop>& stops) {
+        // Group stop times by the corresponding trip id
+        auto stop_times_by_trip = group_stop_times_by_trip(gtfs_stop_times, gtfs_trips.size());
         // Create index mapping stop gtfs ids to the stop object
         auto stop_index = reference_index<std::string, const Stop>{};
         stop_index.reserve(stops.size());
@@ -237,27 +254,28 @@ namespace raptor::gtfs {
             auto gtfs_id = std::string(stop.get_gtfs_id());
             return std::make_pair(gtfs_id, std::cref(stop));
         });
-
-        // First sort each stop time by its sequence
-        for (auto& st_list : stop_times_by_trip | std::views::values) {
-            std::ranges::sort(st_list, std::ranges::less{}, &::gtfs::StopTime::stop_sequence);
-        }
         // Create a corresponding trip object for each day of the service
+        // In addition, maintain a map for the route each trip belongs to
         auto trips = std::vector<Trip>{};
+        auto trip_id_to_route_id = std::unordered_map<trip_id, route_id>{};
         trips.reserve(gtfs_trips.size());
         for (const auto& trip : gtfs_trips) {
             auto& service = services.at(trip.service_id);
             auto& stop_times = stop_times_by_trip[trip.trip_id];
             std::ranges::transform(service.get_active_days(), std::back_inserter(trips),
-                                   [&trip, &time_zone, &stop_times, &stop_index](
+                                   [&trip, &time_zone, &stop_times, &stop_index, &trip_id_to_route_id](
                                    const std::chrono::year_month_day& service_day) {
+                                       auto trip_id = trip.trip_id;
+                                       auto route_id = trip.route_id;
+                                       trip_id_to_route_id[trip_id] = route_id;
                                        return from_gtfs(trip, stop_times, service_day, time_zone, stop_index);
                                    });
-        };
-        return trips;
+        }
+        return {trips, trip_id_to_route_id};
     }
 
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
+                                 std::unordered_map<trip_id, route_id> trip_id_to_route_id,
                                  const std::vector<::gtfs::Route>& gtfs_routes) {
         auto gtfs_route_index = std::unordered_map<std::string, std::reference_wrapper<const ::gtfs::Route>>{};
         gtfs_route_index.reserve(gtfs_routes.size());
@@ -277,7 +295,8 @@ namespace raptor::gtfs {
                                    [](const StopTime& st) {
                                        return std::cref(st.get_stop());
                                    });
-            auto hash = Route::hash(stops, std::string(trip.get_route_gtfs_id()));
+            auto route_id = trip_id_to_route_id.at(std::string(trip.get_trip_gtfs_id()));
+            auto hash = Route::hash(stops, route_id);
             route_map[hash].emplace_back(std::move(trip));
         }
         // Create the actual route objects
@@ -285,7 +304,7 @@ namespace raptor::gtfs {
         routes.reserve(route_map.size());
         for (auto& route_trips : route_map | std::views::values) {
             // TODO: All trips for the same route should have the same gtfs id. Hash collisions?
-            auto route_gtfs_id = std::string(route_trips[0].get_route_gtfs_id());
+            auto route_gtfs_id = trip_id_to_route_id.at(std::string(route_trips[0].get_trip_gtfs_id()));
             auto& gtfs_route = gtfs_route_index.at(route_gtfs_id);
 
             auto& short_name = gtfs_route.get().route_short_name;
@@ -307,8 +326,9 @@ namespace raptor::gtfs {
         // Group stop times by trip
         auto& gtfs_times = feed.get_stop_times();
         // Assemble trips from the services
-        auto trips = from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stops);
-        auto routes = from_gtfs(std::move(trips), feed.get_routes());
+        auto [trips, trip_id_to_route_id] =
+                from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stops);
+        auto routes = from_gtfs(std::move(trips), trip_id_to_route_id, feed.get_routes());
         return {std::move(agencies), std::move(stops), std::move(routes)};
     }
 }

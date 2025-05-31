@@ -104,20 +104,15 @@ namespace raptor {
      */
     class Trip {
     public:
-        Trip(std::vector<StopTime>&& stop_times, std::string trip_gtfs_id, std::string route_gtfs_id,
+        Trip(std::vector<StopTime>&& stop_times, std::string trip_gtfs_id,
              std::string shape_gtfs_id) :
             stop_times(std::move(stop_times)),
             trip_gtfs_id(std::move(trip_gtfs_id)),
-            route_gtfs_id(std::move(route_gtfs_id)),
             shape_gtfs_id(std::move(shape_gtfs_id)) {
         }
 
         [[nodiscard]] const std::vector<StopTime>& get_stop_times() const {
             return stop_times;
-        }
-
-        [[nodiscard]] std::string_view get_route_gtfs_id() const {
-            return route_gtfs_id;
         }
 
         [[nodiscard]] std::string_view get_trip_gtfs_id() const {
@@ -141,7 +136,6 @@ namespace raptor {
     private:
         std::vector<StopTime> stop_times; /**< Stop times are completely owned by the trip */
         std::string trip_gtfs_id;
-        std::string route_gtfs_id;
         std::string shape_gtfs_id;
     };
 
