@@ -75,6 +75,16 @@ namespace raptor::gtfs {
         return stops;
     }
 
+    std::deque<Agency> from_gtfs(const ::gtfs::Agencies& gtfs_agencies) {
+        std::deque<Agency> agencies;
+        std::ranges::transform(gtfs_agencies, std::back_inserter(agencies), [](const ::gtfs::Agency& gtfs_agency) {
+            // TODO: Handle wrong timezone. But is this likely to happen?
+            auto time_zone = std::chrono::locate_zone(gtfs_agency.agency_timezone);
+            return Agency(gtfs_agency.agency_id, gtfs_agency.agency_name, gtfs_agency.agency_url, time_zone);
+        });
+        return agencies;
+    }
+
     StopTime from_gtfs(const ::gtfs::StopTime& stop_time, const std::chrono::year_month_day& service_day,
                        const std::chrono::time_zone* time_zone,
                        const Stop& stop) {
@@ -278,10 +288,12 @@ namespace raptor::gtfs {
 
     Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit) {
         // TODO: Get the timezone from each agency
-        auto timezone_gtfs = feed.get_agencies().front().agency_timezone;
-        auto timezone = std::chrono::locate_zone(timezone_gtfs);
+        auto agencies = from_gtfs(feed.get_agencies());
+
+        auto timezone = agencies.front().get_time_zone();
 
         auto stops = from_gtfs(feed.get_stops());
+
 
         auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates());
         // Group stop times by trip
@@ -289,6 +301,6 @@ namespace raptor::gtfs {
         // Assemble trips from the services
         auto trips = from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stops);
         auto routes = from_gtfs(std::move(trips), feed.get_routes());
-        return {std::move(stops), std::move(routes)};
+        return {std::move(agencies), std::move(stops), std::move(routes)};
     }
 }

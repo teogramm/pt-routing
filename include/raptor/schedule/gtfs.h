@@ -18,6 +18,8 @@ namespace raptor::gtfs {
      */
     std::deque<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops);
 
+    std::deque<Agency> from_gtfs(const ::gtfs::Agencies& gtfs_agencies);
+
     /**
      * Creates Service objects from GTFS calendar and calendar_dates.
      * @return Map of the GTFS service_id to the corresponding Service object. A map is returned for faster searching.

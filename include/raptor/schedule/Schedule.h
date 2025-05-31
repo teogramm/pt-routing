@@ -109,6 +109,17 @@ namespace raptor {
     };
 
     class Agency {
+    public:
+        Agency(std::string gtfs_id, std::string name,
+               std::string url, const std::chrono::time_zone* time_zone):
+            gtfs_id(std::move(gtfs_id)), name(std::move(name)), url(std::move(url)), time_zone(time_zone) {
+        }
+
+        [[nodiscard]] const std::chrono::time_zone* get_time_zone() const {
+            return time_zone;
+        }
+
+    private:
         friend bool operator==(const Agency& lhs, const Agency& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
         friend bool operator!=(const Agency& lhs, const Agency& rhs) { return !(lhs == rhs); }
 
@@ -116,14 +127,6 @@ namespace raptor {
         const std::string name;
         const std::string url;
         const std::chrono::time_zone* time_zone;
-
-    public:
-        Agency() = delete;
-
-        Agency(std::string gtfs_id, std::string name,
-               std::string url, const std::chrono::time_zone* time_zone):
-            gtfs_id(std::move(gtfs_id)), name(std::move(name)), url(std::move(url)), time_zone(time_zone) {
-        }
     };
 
 
@@ -131,8 +134,8 @@ namespace raptor {
     public:
         Schedule() = delete;
 
-        Schedule(std::deque<Stop>&& stops, std::vector<Route>&& routes):
-            stops(std::move(stops)), routes(std::move(routes)) {
+        Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops, std::vector<Route>&& routes):
+            agencies(std::move(agencies)), stops(std::move(stops)), routes(std::move(routes)) {
         }
 
     private:
@@ -142,7 +145,7 @@ namespace raptor {
         // reallocation happens.
         // Nevertheless, using a deque is better, since it guarantees references will remain.
         const std::deque<Stop> stops;
-        const std::vector<Agency> agencies;
+        const std::deque<Agency> agencies;
         const std::vector<Route> routes;
     };
 
