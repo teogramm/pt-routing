@@ -203,7 +203,8 @@ namespace raptor::gtfs {
         std::ranges::transform(service_dates_map, std::inserter(services, services.begin()), [](
                                std::pair<std::string, days_vector> service_dates) {
                                    return std::make_pair(service_dates.first,
-                                                         Service(service_dates.first, std::move(service_dates.second)));
+                                                         Service(service_dates.first,
+                                                                 std::move(service_dates.second)));
                                });
         return services;
     }
@@ -276,16 +277,16 @@ namespace raptor::gtfs {
         return {std::move(trips), std::move(trip_id_to_route_id)};
     }
 
-    std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
-                                 const std::unordered_map<trip_id, route_id>& trip_id_to_route_id,
-                                 const std::vector<::gtfs::Route>& gtfs_routes) {
-        auto gtfs_route_index = std::unordered_map<std::string, std::reference_wrapper<const ::gtfs::Route>>{};
-        gtfs_route_index.reserve(gtfs_routes.size());
-        std::ranges::transform(gtfs_routes, std::inserter(gtfs_route_index, gtfs_route_index.begin()),
-                               [](const ::gtfs::Route& route) {
-                                   return std::make_pair(route.route_id, std::cref(route));
-                               });
-
+    /**
+     * Groups the given trips by route.
+     * Two trips belong in the same route if they have the same stop order and the same route ID.
+     * @param trips Collection of Raptor trip objects. Ownership of the trips in the vector is transferred
+     * to the returned map.
+     * @param trip_id_to_route_id Map matching the GTFS trip ID to the GTFS route ID for each route.
+     * @return Map matching the Raptor route hash to a vector of trips belonging to it.
+     */
+    std::unordered_map<size_t, std::vector<Trip>>
+    group_trips_by_route(std::vector<Trip>&& trips, const std::unordered_map<trip_id, route_id>& trip_id_to_route_id) {
         // Each raptor route is considered unique if it contains the same stops and corresponds to the same gtfs id
         auto route_map = std::unordered_map<size_t, std::vector<Trip>>{};
         for (auto& trip : trips) {
@@ -301,6 +302,19 @@ namespace raptor::gtfs {
             auto hash = Route::hash(stops, route_id);
             route_map[hash].emplace_back(std::move(trip));
         }
+        return route_map;
+    }
+
+    std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
+                                 const std::unordered_map<trip_id, route_id>& trip_id_to_route_id,
+                                 const std::vector<::gtfs::Route>& gtfs_routes) {
+        auto gtfs_route_index = std::unordered_map<std::string, std::reference_wrapper<const ::gtfs::Route>>{};
+        gtfs_route_index.reserve(gtfs_routes.size());
+        std::ranges::transform(gtfs_routes, std::inserter(gtfs_route_index, gtfs_route_index.begin()),
+                               [](const ::gtfs::Route& route) {
+                                   return std::make_pair(route.route_id, std::cref(route));
+                               });
+        auto route_map = group_trips_by_route(std::move(trips), trip_id_to_route_id);
         // Create the actual route objects
         auto routes = std::vector<Route>{};
         routes.reserve(route_map.size());
