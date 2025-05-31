@@ -18,11 +18,12 @@ namespace raptor::gtfs {
      * Keys are selected using the given selector functions.
      * @param selector Function which converts an object to the value used as a key in the resulting map
      */
-    template <std::ranges::random_access_range Range,
+    template <
+        std::ranges::random_access_range Range,
         typename Value = std::ranges::range_value_t<Range>,
-        typename Func,
-        std::totally_ordered Key = std::invoke_result_t<Func, Value>>
-    reference_index<Key, const Value> create_index(const Range& range, Func selector) {
+        typename Selector,
+        std::totally_ordered Key = std::invoke_result_t<Selector, Value>>
+    reference_index<Key, const Value> create_index(const Range& range, Selector selector) {
         auto index = reference_index<Key, const Value>{};
         index.reserve(std::ranges::size(range));
         std::ranges::transform(range, std::inserter(index, index.begin()), [selector](const Value& item) {
