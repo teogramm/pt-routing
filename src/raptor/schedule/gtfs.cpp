@@ -18,11 +18,14 @@ namespace raptor::gtfs {
      * Keys are selected using the given selector functions.
      * @param selector Function which converts an object to the value used as a key in the resulting map
      */
-    template <std::totally_ordered Key, typename Value, typename Func>
-    reference_index<Key, const Value> create_index(const std::vector<Value>& items, Func selector) {
+    template <std::ranges::random_access_range Range,
+        typename Value = std::ranges::range_value_t<Range>,
+        typename Func,
+        std::totally_ordered Key = std::invoke_result_t<Func, Value>>
+    reference_index<Key, const Value> create_index(const Range& range, Func selector) {
         auto index = reference_index<Key, const Value>{};
-        index.reserve(items.size());
-        std::ranges::transform(items, std::inserter(index, index.begin()), [selector](const Value& item) {
+        index.reserve(std::ranges::size(range));
+        std::ranges::transform(range, std::inserter(index, index.begin()), [selector](const Value& item) {
             auto item_id = selector(item);
             return std::pair{item_id, std::cref(item)};
         });
@@ -251,11 +254,8 @@ namespace raptor::gtfs {
         // Group stop times by the corresponding trip id
         auto stop_times_by_trip = group_stop_times_by_trip(gtfs_stop_times, gtfs_trips.size());
         // Create index mapping stop gtfs ids to the stop object
-        auto stop_index = reference_index<stop_id, const Stop>{};
-        stop_index.reserve(stops.size());
-        std::ranges::transform(stops, std::inserter(stop_index, stop_index.begin()), [](const Stop& stop) {
-            auto gtfs_id = std::string(stop.get_gtfs_id());
-            return std::make_pair(gtfs_id, std::cref(stop));
+        auto stop_index = create_index(stops, [](const Stop& stop) {
+            return std::string(stop.get_gtfs_id());
         });
         // Create a corresponding trip object for each day of the service
         // In addition, maintain a map for the route each trip belongs to
@@ -310,18 +310,12 @@ namespace raptor::gtfs {
                                  const std::unordered_map<trip_id, route_id>& trip_id_to_route_id,
                                  const std::deque<Agency>& agencies,
                                  const ::gtfs::Routes& gtfs_routes) {
-        auto gtfs_route_index = std::unordered_map<route_id, std::reference_wrapper<const ::gtfs::Route>>{};
-        gtfs_route_index.reserve(gtfs_routes.size());
-        std::ranges::transform(gtfs_routes, std::inserter(gtfs_route_index, gtfs_route_index.begin()),
-                               [](const ::gtfs::Route& route) {
-                                   return std::make_pair(route.route_id, std::cref(route));
-                               });
-        auto agencies_index = std::unordered_map<agency_id, std::reference_wrapper<const Agency>>{};
-        agencies_index.reserve(agencies.size());
-        std::ranges::transform(agencies, std::inserter(agencies_index, agencies_index.begin()),
-                               [](const Agency& agency) {
-                                   return std::make_pair(std::string(agency.get_gtfs_id()), std::cref(agency));
-                               });
+        auto gtfs_route_index = create_index(gtfs_routes, [](const ::gtfs::Route& route) {
+            return route.route_id;
+        });
+        auto agencies_index = create_index(agencies, [](const Agency& agency) {
+            return std::string(agency.get_gtfs_id());
+        });
         auto route_map = group_trips_by_route(std::move(trips), trip_id_to_route_id);
         // Create the actual route objects
         auto routes = std::vector<Route>{};
