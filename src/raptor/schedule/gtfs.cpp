@@ -332,6 +332,8 @@ namespace raptor::gtfs {
             auto& gtfs_route = gtfs_route_index.at(route_gtfs_id);
             auto& agency = agencies_index.at(gtfs_route.get().agency_id);
 
+            route_trips.shrink_to_fit();
+
             auto& short_name = gtfs_route.get().route_short_name;
             auto& long_name = gtfs_route.get().route_long_name;
             routes.emplace_back(std::move(route_trips), short_name, long_name, route_gtfs_id, agency);
