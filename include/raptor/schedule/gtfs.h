@@ -1,8 +1,12 @@
 #ifndef GTFS_H
 #define GTFS_H
 
+#include <deque>
+#include <unordered_map>
+
+#include <just_gtfs/just_gtfs.h>
+
 #include "Schedule.h"
-#include "just_gtfs/just_gtfs.h"
 
 namespace raptor::gtfs {
     /**
@@ -77,7 +81,7 @@ namespace raptor::gtfs {
                                 const std::deque<Stop>& stops);
 
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
-                                const std::vector<::gtfs::Route>& gtfs_routes);
+                                 const std::vector<::gtfs::Route>& gtfs_routes);
 
     Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit = std::nullopt);
 

@@ -69,8 +69,8 @@ namespace raptor::gtfs {
         std::ranges::transform(gtfs_stops | std::views::filter(is_platform),
                                std::back_inserter(stops), [](const ::gtfs::Stop& gtfs_stop) {
                                    return Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
-                                               {gtfs_stop.stop_lat,
-                                                gtfs_stop.stop_lon}};
+                                               gtfs_stop.stop_lat,
+                                               gtfs_stop.stop_lon};
                                });
         return stops;
     }
@@ -148,40 +148,42 @@ namespace raptor::gtfs {
 
     std::unordered_map<std::string, Service> from_gtfs(const ::gtfs::Calendar& calendars,
                                                        const ::gtfs::CalendarDates& calendar_dates) {
-        auto services = std::unordered_map<std::string, Service>{};
-        services.reserve(calendars.size());
+        using days_vector = std::vector<std::chrono::year_month_day>;
+
+        auto service_dates_map = std::unordered_map<std::string, days_vector>{};
+        service_dates_map.reserve(calendars.size());
         // Parse regular calendars
         for (auto& calendar : calendars) {
             auto start_date = gtfs_date_to_ymd(calendar.start_date);
             auto end_date = gtfs_date_to_ymd(calendar.end_date);
             auto active_weekdays = calendar_active_weekdays(calendar);
-            auto service_dates = std::vector<std::chrono::year_month_day>{};
+            auto this_service_dates = days_vector{};
             for (auto& weekday : active_weekdays) {
                 auto new_dates = all_weekdays_in_period(start_date, end_date, weekday);
                 // Avoid copying the dates
-                service_dates.insert(service_dates.end(), std::make_move_iterator(new_dates.begin()),
-                                     std::make_move_iterator(new_dates.end()));
+                this_service_dates.insert(this_service_dates.end(), std::make_move_iterator(new_dates.begin()),
+                                          std::make_move_iterator(new_dates.end()));
             }
             // TODO: Can a service appear twice?
-            if (services.contains(calendar.service_id)) {
+            if (service_dates_map.contains(calendar.service_id)) {
                 throw std::runtime_error("Duplicate service ID found in calendars.txt");
             }
-            services[calendar.service_id] = Service{calendar.service_id, service_dates};
+            service_dates_map[calendar.service_id] = this_service_dates;
         }
         // Parse exceptions
         for (auto& calendar_date : calendar_dates) {
             auto exception_date = gtfs_date_to_ymd(calendar_date.date);
-            if (!services.contains(calendar_date.service_id))
+            if (!service_dates_map.contains(calendar_date.service_id))
                 throw std::runtime_error("Unknown service ID in calendar_dates");
-            auto& service = services[calendar_date.service_id];
+            auto& active_days = service_dates_map.at(calendar_date.service_id);
             if (calendar_date.exception_type == ::gtfs::CalendarDateException::Added) {
-                service.active_days.emplace_back(exception_date);
+                active_days.emplace_back(exception_date);
             }
             else {
                 // Find the given date and remove it
-                auto date_pos = std::ranges::find(service.active_days, exception_date);
-                if (date_pos != service.active_days.end()) {
-                    service.active_days.erase(date_pos);
+                auto date_pos = std::ranges::find(active_days, exception_date);
+                if (date_pos != active_days.end()) {
+                    active_days.erase(date_pos);
                 }
                 else {
                     throw std::runtime_error("Can't find specified date to remove from calendar_dates.txt");
@@ -190,6 +192,13 @@ namespace raptor::gtfs {
         }
         // Return a map for faster searches, since services are only used for building the schedule and are not
         // retained. It is also convenient since the map is useful when creating the service objects.
+        auto services = std::unordered_map<std::string, Service>{};
+        services.reserve(service_dates_map.size());
+        std::ranges::transform(service_dates_map, std::inserter(services, services.begin()), [](
+                               std::pair<std::string, days_vector> service_dates) {
+                                   return std::make_pair(service_dates.first,
+                                                         Service(service_dates.first, std::move(service_dates.second)));
+                               });
         return services;
     }
 
@@ -205,7 +214,7 @@ namespace raptor::gtfs {
                                    auto& stop = stop_index.at(stop_time.stop_id);
                                    return from_gtfs(stop_time, service_day, time_zone, stop);
                                });
-        return {stop_times, gtfs_trip.trip_id, gtfs_trip.shape_id, gtfs_trip.route_id};
+        return {std::move(stop_times), gtfs_trip.trip_id, gtfs_trip.route_id, gtfs_trip.shape_id};
     }
 
     std::vector<Trip> from_gtfs(const ::gtfs::Trips& gtfs_trips,
@@ -225,7 +234,8 @@ namespace raptor::gtfs {
         auto stop_index = reference_index<std::string, const Stop>{};
         stop_index.reserve(stops.size());
         std::ranges::transform(stops, std::inserter(stop_index, stop_index.begin()), [](const Stop& stop) {
-            return std::make_pair(stop.gtfs_id, std::cref(stop));
+            auto gtfs_id = std::string(stop.get_gtfs_id());
+            return std::make_pair(gtfs_id, std::cref(stop));
         });
 
         // First sort each stop time by its sequence
@@ -238,7 +248,7 @@ namespace raptor::gtfs {
         for (const auto& trip : gtfs_trips) {
             auto& service = services.at(trip.service_id);
             auto& stop_times = stop_times_by_trip[trip.trip_id];
-            std::ranges::transform(service.active_days, std::back_inserter(trips),
+            std::ranges::transform(service.get_active_days(), std::back_inserter(trips),
                                    [&trip, &time_zone, &stop_times, &stop_index](
                                    const std::chrono::year_month_day& service_day) {
                                        return from_gtfs(trip, stop_times, service_day, time_zone, stop_index);
@@ -262,13 +272,12 @@ namespace raptor::gtfs {
             // Calculate the hash of the trip
             // Create a vector of stops
             auto stops = std::vector<std::reference_wrapper<const Stop>>{};
-            stops.reserve(trip.stop_times.size());
-            std::ranges::transform(trip.stop_times, std::back_inserter(stops),
+            stops.reserve(trip.get_stop_times().size());
+            std::ranges::transform(trip.get_stop_times(), std::back_inserter(stops),
                                    [](const StopTime& st) {
-                                       return std::cref(st.stop);
+                                       return std::cref(st.get_stop());
                                    });
-            auto hash = Route::hash(stops, trip.route_gtfs_id);
-            // TODO: Check std move performance difference
+            auto hash = Route::hash(stops, std::string(trip.get_route_gtfs_id()));
             route_map[hash].emplace_back(std::move(trip));
         }
         // Create the actual route objects
@@ -276,7 +285,7 @@ namespace raptor::gtfs {
         routes.reserve(route_map.size());
         for (auto& route_trips : route_map | std::views::values) {
             // TODO: All trips for the same route should have the same gtfs id. Hash collisions?
-            auto& route_gtfs_id = route_trips[0].route_gtfs_id;
+            auto route_gtfs_id = std::string(route_trips[0].get_route_gtfs_id());
             auto& gtfs_route = gtfs_route_index.at(route_gtfs_id);
 
             auto& short_name = gtfs_route.get().route_short_name;
@@ -287,13 +296,12 @@ namespace raptor::gtfs {
     }
 
     Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit) {
+        // TODO: Add day limit
         // TODO: Get the timezone from each agency
         auto agencies = from_gtfs(feed.get_agencies());
-
         auto timezone = agencies.front().get_time_zone();
 
         auto stops = from_gtfs(feed.get_stops());
-
 
         auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates());
         // Group stop times by trip
