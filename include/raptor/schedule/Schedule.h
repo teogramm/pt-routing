@@ -139,18 +139,52 @@ namespace raptor {
         std::string shape_gtfs_id;
     };
 
+    class Agency {
+    public:
+        Agency(std::string gtfs_id, std::string name,
+               std::string url,const std::chrono::time_zone* time_zone):
+            gtfs_id(std::move(gtfs_id)), name(std::move(name)), url(std::move(url)), time_zone(time_zone) {
+        }
+
+        [[nodiscard]] const std::chrono::time_zone* get_time_zone() const {
+            return time_zone;
+        }
+
+        [[nodiscard]] std::string_view get_gtfs_id() const {
+            return gtfs_id;
+        }
+
+        [[nodiscard]] std::string_view get_name() const {
+            return name;
+        }
+
+        [[nodiscard]] std::string_view get_url() const {
+            return url;
+        }
+
+        friend bool operator==(const Agency& lhs, const Agency& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
+        friend bool operator!=(const Agency& lhs, const Agency& rhs) { return !(lhs == rhs); }
+
+    private:
+        std::string gtfs_id;
+        std::string name;
+        std::string url;
+        const std::chrono::time_zone* time_zone;
+    };
+
     /**
-     * A route is a collection of trips, which stop at exactly the same stops, in the same order, and have the same
-     * GTFS route ID.
-     */
+ * A route is a collection of trips, which stop at exactly the same stops, in the same order, and have the same
+ * GTFS route ID.
+ */
     class Route {
     public:
         Route(std::vector<Trip>&& trips, std::string short_name,
-              std::string long_name, std::string gtfs_id) :
+              std::string long_name, std::string gtfs_id, const Agency& agency) :
             trips(std::move(trips)),
             short_name(std::move(short_name)),
             long_name(std::move(long_name)),
-            gtfs_id(std::move(gtfs_id)) {
+            gtfs_id(std::move(gtfs_id)),
+            agency(std::cref(agency)) {
         }
 
         [[nodiscard]] const std::vector<Trip>& get_trips() const {
@@ -193,39 +227,7 @@ namespace raptor {
         std::string short_name;
         std::string long_name;
         std::string gtfs_id;
-    };
-
-    class Agency {
-    public:
-        Agency(std::string gtfs_id, std::string name,
-               std::string url, const std::chrono::time_zone* time_zone):
-            gtfs_id(std::move(gtfs_id)), name(std::move(name)), url(std::move(url)), time_zone(time_zone) {
-        }
-
-        [[nodiscard]] const std::chrono::time_zone* get_time_zone() const {
-            return time_zone;
-        }
-
-        [[nodiscard]] std::string_view get_gtfs_id() const {
-            return gtfs_id;
-        }
-
-        [[nodiscard]] std::string_view get_name() const {
-            return name;
-        }
-
-        [[nodiscard]] std::string_view get_url() const {
-            return url;
-        }
-
-        friend bool operator==(const Agency& lhs, const Agency& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
-        friend bool operator!=(const Agency& lhs, const Agency& rhs) { return !(lhs == rhs); }
-
-    private:
-        const std::string gtfs_id;
-        const std::string name;
-        const std::string url;
-        const std::chrono::time_zone* time_zone;
+        const Agency& agency;
     };
 
 

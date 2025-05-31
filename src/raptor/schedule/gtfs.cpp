@@ -7,6 +7,7 @@
 // TODO: Change references to shared ptr
 namespace raptor::gtfs {
 
+    using agency_id = std::string;
     using route_id = std::string;
     using calendar_id = std::string;
     using trip_id = std::string;
@@ -307,12 +308,19 @@ namespace raptor::gtfs {
 
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
                                  const std::unordered_map<trip_id, route_id>& trip_id_to_route_id,
-                                 const std::vector<::gtfs::Route>& gtfs_routes) {
-        auto gtfs_route_index = std::unordered_map<std::string, std::reference_wrapper<const ::gtfs::Route>>{};
+                                 const std::deque<Agency>& agencies,
+                                 const ::gtfs::Routes& gtfs_routes) {
+        auto gtfs_route_index = std::unordered_map<route_id, std::reference_wrapper<const ::gtfs::Route>>{};
         gtfs_route_index.reserve(gtfs_routes.size());
         std::ranges::transform(gtfs_routes, std::inserter(gtfs_route_index, gtfs_route_index.begin()),
                                [](const ::gtfs::Route& route) {
                                    return std::make_pair(route.route_id, std::cref(route));
+                               });
+        auto agencies_index = std::unordered_map<agency_id, std::reference_wrapper<const Agency>>{};
+        agencies_index.reserve(agencies.size());
+        std::ranges::transform(agencies, std::inserter(agencies_index, agencies_index.begin()),
+                               [](const Agency& agency) {
+                                   return std::make_pair(std::string(agency.get_gtfs_id()), std::cref(agency));
                                });
         auto route_map = group_trips_by_route(std::move(trips), trip_id_to_route_id);
         // Create the actual route objects
@@ -322,10 +330,11 @@ namespace raptor::gtfs {
             // TODO: All trips for the same route should have the same gtfs id. Hash collisions?
             auto route_gtfs_id = trip_id_to_route_id.at(std::string(route_trips[0].get_trip_gtfs_id()));
             auto& gtfs_route = gtfs_route_index.at(route_gtfs_id);
+            auto& agency = agencies_index.at(gtfs_route.get().agency_id);
 
             auto& short_name = gtfs_route.get().route_short_name;
             auto& long_name = gtfs_route.get().route_long_name;
-            routes.emplace_back(std::move(route_trips), short_name, long_name, route_gtfs_id);
+            routes.emplace_back(std::move(route_trips), short_name, long_name, route_gtfs_id, agency);
         }
         return routes;
     }
@@ -344,7 +353,7 @@ namespace raptor::gtfs {
         // Assemble trips from the services
         auto [trips, trip_id_to_route_id] =
                 from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stops);
-        auto routes = from_gtfs(std::move(trips), trip_id_to_route_id, feed.get_routes());
+        auto routes = from_gtfs(std::move(trips), trip_id_to_route_id, agencies, feed.get_routes());
         return {std::move(agencies), std::move(stops), std::move(routes)};
     }
 }

@@ -84,7 +84,7 @@ namespace raptor::gtfs {
 
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
                                  const std::unordered_map<std::string, std::string>& trip_id_to_route_id,
-                                 const std::vector<::gtfs::Route>& gtfs_routes);
+                                 const std::deque<Agency>& agencies, const ::gtfs::Routes& gtfs_routes);
 
     Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit = std::nullopt);
 
