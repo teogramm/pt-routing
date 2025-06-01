@@ -163,6 +163,9 @@ namespace raptor::gtfs {
                                                        date_limit) {
         using date_vector = std::vector<std::chrono::year_month_day>;
 
+        auto service_dates_map = std::unordered_map<calendar_id, date_vector>{};
+        service_dates_map.reserve(calendars.size());
+
         // For some reason using chrono::year::max gives a limit_end in 1969
         auto limit_start = std::chrono::year_month_day(std::chrono::year::min(), std::chrono::month{1},
                                                        std::chrono::day{1});
@@ -174,10 +177,7 @@ namespace raptor::gtfs {
         }
         assert(limit_end >= limit_start);
 
-        auto service_dates_map = std::unordered_map<calendar_id, date_vector>{};
-        service_dates_map.reserve(calendars.size());
-        // Parse regular calendars
-        for (auto& calendar : calendars) {
+        auto parse_calendar = [&limit_start, &limit_end, &service_dates_map](const ::gtfs::CalendarItem& calendar) {
             // Return the most limiting period as defined by the limit and the calendar dates
             auto start_date = std::max(gtfs_date_to_ymd(calendar.start_date), limit_start);
             auto end_date = std::min(gtfs_date_to_ymd(calendar.end_date), limit_end);
@@ -187,17 +187,19 @@ namespace raptor::gtfs {
             for (auto& weekday : active_weekdays) {
                 auto new_dates = all_weekdays_in_period(start_date, end_date, weekday);
                 // Avoid copying the dates
-                this_service_dates.insert(this_service_dates.end(), std::make_move_iterator(new_dates.begin()),
+                this_service_dates.insert(this_service_dates.end(),
+                                          std::make_move_iterator(new_dates.begin()),
                                           std::make_move_iterator(new_dates.end()));
             }
             // TODO: Can a service appear twice?
             if (service_dates_map.contains(calendar.service_id)) {
                 throw std::runtime_error("Duplicate service ID found in calendars.txt");
             }
-            service_dates_map[calendar.service_id] = this_service_dates;
-        }
-        // Parse exceptions
-        for (auto& calendar_date : calendar_dates) {
+            service_dates_map.emplace(calendar.service_id, std::move(this_service_dates));
+        };
+
+        auto parse_exception = [&limit_start, &limit_end, &service_dates_map
+                ](const ::gtfs::CalendarDate& calendar_date) {
             auto exception_date = gtfs_date_to_ymd(calendar_date.date);
             if (exception_date >= limit_start && exception_date <= limit_end) {
                 if (!service_dates_map.contains(calendar_date.service_id))
@@ -208,7 +210,8 @@ namespace raptor::gtfs {
                 }
                 else {
                     // Find the given date and remove it
-                    auto date_pos = std::ranges::find(active_days, exception_date);
+                    auto date_pos =
+                            std::ranges::find(active_days, exception_date);
                     if (date_pos != active_days.end()) {
                         active_days.erase(date_pos);
                     }
@@ -217,7 +220,11 @@ namespace raptor::gtfs {
                     }
                 }
             }
-        }
+        };
+
+        std::ranges::for_each(calendars, parse_calendar);
+        std::ranges::for_each(calendar_dates, parse_exception);
+
         // Return a map for faster searches, since services are only used for building the schedule and are not
         // retained. It is also convenient since the map is useful when creating the service objects.
         auto services = std::unordered_map<std::string, Service>{};
