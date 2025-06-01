@@ -30,9 +30,9 @@ namespace raptor::gtfs {
      */
     std::unordered_map<std::string, Service> from_gtfs(const ::gtfs::Calendar& calendars,
                                                        const ::gtfs::CalendarDates& calendar_dates,
-                                                       std::optional<std::pair<std::chrono::year_month_day,
-                                                                               std::chrono::year_month_day>>
-                                                       date_limit = std::nullopt);
+                                                       const std::optional<std::pair<std::chrono::year_month_day,
+                                                           std::chrono::year_month_day>>&
+                                                               date_limit = std::nullopt);
 
     /**
      * Creates an instantiation of a stop time, from a generic GTFS stop_time.
@@ -90,8 +90,8 @@ namespace raptor::gtfs {
                                  const std::deque<Agency>& agencies, const ::gtfs::Routes& gtfs_routes);
 
     Schedule from_gtfs(const ::gtfs::Feed& feed,
-                       std::optional<std::pair<std::chrono::year_month_day,
-                                               std::chrono::year_month_day>> date_limit = std::nullopt);
+                       const std::optional<std::pair<std::chrono::year_month_day,
+                                                     std::chrono::year_month_day>>& date_limit = std::nullopt);
 
 }
 

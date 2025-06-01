@@ -158,9 +158,9 @@ namespace raptor::gtfs {
 
     std::unordered_map<calendar_id, Service> from_gtfs(const ::gtfs::Calendar& calendars,
                                                        const ::gtfs::CalendarDates& calendar_dates,
-                                                       std::optional<std::pair<std::chrono::year_month_day,
-                                                                               std::chrono::year_month_day>>
-                                                       date_limit) {
+                                                       const std::optional<std::pair<std::chrono::year_month_day,
+                                                           std::chrono::year_month_day>>
+                                                       & date_limit) {
         using date_vector = std::vector<std::chrono::year_month_day>;
 
         auto service_dates_map = std::unordered_map<calendar_id, date_vector>{};
@@ -364,7 +364,8 @@ namespace raptor::gtfs {
     }
 
     Schedule from_gtfs(const ::gtfs::Feed& feed,
-                       std::optional<std::pair<std::chrono::year_month_day, std::chrono::year_month_day>> date_limit) {
+                       const std::optional<std::pair<std::chrono::year_month_day,
+                                                     std::chrono::year_month_day>>& date_limit) {
         // TODO: Add day limit
         // TODO: Get the timezone from each agency
         auto agencies = from_gtfs(feed.get_agencies());
