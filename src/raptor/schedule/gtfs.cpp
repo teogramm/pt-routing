@@ -157,18 +157,33 @@ namespace raptor::gtfs {
     }
 
     std::unordered_map<calendar_id, Service> from_gtfs(const ::gtfs::Calendar& calendars,
-                                                       const ::gtfs::CalendarDates& calendar_dates) {
-        using days_vector = std::vector<std::chrono::year_month_day>;
+                                                       const ::gtfs::CalendarDates& calendar_dates,
+                                                       std::optional<std::pair<std::chrono::year_month_day,
+                                                                               std::chrono::year_month_day>>
+                                                       date_limit) {
+        using date_vector = std::vector<std::chrono::year_month_day>;
 
-        auto service_dates_map = std::unordered_map<calendar_id, days_vector>{};
+        // For some reason using chrono::year::max gives a limit_end in 1969
+        auto limit_start = std::chrono::year_month_day(std::chrono::year::min(), std::chrono::month{1},
+                                                       std::chrono::day{1});
+        auto limit_end = std::chrono::year_month_day(std::chrono::year::max(), std::chrono::month{12},
+                                                     std::chrono::day{31});
+        if (date_limit != std::nullopt) {
+            limit_start = std::get<0>(*date_limit);
+            limit_end = std::get<1>(*date_limit);
+        }
+        assert(limit_end >= limit_start);
+
+        auto service_dates_map = std::unordered_map<calendar_id, date_vector>{};
         service_dates_map.reserve(calendars.size());
         // Parse regular calendars
         for (auto& calendar : calendars) {
-            auto start_date = gtfs_date_to_ymd(calendar.start_date);
-            auto end_date = gtfs_date_to_ymd(calendar.end_date);
+            // Return the most limiting period as defined by the limit and the calendar dates
+            auto start_date = std::max(gtfs_date_to_ymd(calendar.start_date), limit_start);
+            auto end_date = std::min(gtfs_date_to_ymd(calendar.end_date), limit_end);
             auto active_weekdays = calendar_active_weekdays(calendar);
 
-            auto this_service_dates = days_vector{};
+            auto this_service_dates = date_vector{};
             for (auto& weekday : active_weekdays) {
                 auto new_dates = all_weekdays_in_period(start_date, end_date, weekday);
                 // Avoid copying the dates
@@ -184,20 +199,22 @@ namespace raptor::gtfs {
         // Parse exceptions
         for (auto& calendar_date : calendar_dates) {
             auto exception_date = gtfs_date_to_ymd(calendar_date.date);
-            if (!service_dates_map.contains(calendar_date.service_id))
-                throw std::runtime_error("Unknown service ID in calendar_dates");
-            auto& active_days = service_dates_map.at(calendar_date.service_id);
-            if (calendar_date.exception_type == ::gtfs::CalendarDateException::Added) {
-                active_days.emplace_back(exception_date);
-            }
-            else {
-                // Find the given date and remove it
-                auto date_pos = std::ranges::find(active_days, exception_date);
-                if (date_pos != active_days.end()) {
-                    active_days.erase(date_pos);
+            if (exception_date >= limit_start && exception_date <= limit_end) {
+                if (!service_dates_map.contains(calendar_date.service_id))
+                    throw std::runtime_error("Unknown service ID in calendar_dates");
+                auto& active_days = service_dates_map.at(calendar_date.service_id);
+                if (calendar_date.exception_type == ::gtfs::CalendarDateException::Added) {
+                    active_days.emplace_back(exception_date);
                 }
                 else {
-                    throw std::runtime_error("Can't find specified date to remove from calendar_dates.txt");
+                    // Find the given date and remove it
+                    auto date_pos = std::ranges::find(active_days, exception_date);
+                    if (date_pos != active_days.end()) {
+                        active_days.erase(date_pos);
+                    }
+                    else {
+                        throw std::runtime_error("Can't find specified date to remove from calendar_dates.txt");
+                    }
                 }
             }
         }
@@ -206,7 +223,7 @@ namespace raptor::gtfs {
         auto services = std::unordered_map<std::string, Service>{};
         services.reserve(service_dates_map.size());
         std::ranges::transform(service_dates_map, std::inserter(services, services.begin()), [](
-                               std::pair<std::string, days_vector> service_dates) {
+                               std::pair<std::string, date_vector> service_dates) {
                                    return std::make_pair(service_dates.first,
                                                          Service(service_dates.first,
                                                                  std::move(service_dates.second)));
@@ -229,6 +246,9 @@ namespace raptor::gtfs {
         return {std::move(stop_times), gtfs_trip.trip_id, gtfs_trip.shape_id};
     }
 
+    /**
+     * Group the given StopTimes by trip and sort them by their sequence.
+     */
     std::unordered_map<trip_id, std::vector<std::reference_wrapper<const ::gtfs::StopTime>>>
     group_stop_times_by_trip(const ::gtfs::StopTimes& gtfs_stop_times, const size_t n_trips) {
         auto stop_times_by_trip = std::unordered_map<
@@ -336,7 +356,8 @@ namespace raptor::gtfs {
         return routes;
     }
 
-    Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit) {
+    Schedule from_gtfs(const ::gtfs::Feed& feed,
+                       std::optional<std::pair<std::chrono::year_month_day, std::chrono::year_month_day>> date_limit) {
         // TODO: Add day limit
         // TODO: Get the timezone from each agency
         auto agencies = from_gtfs(feed.get_agencies());
@@ -344,7 +365,8 @@ namespace raptor::gtfs {
 
         auto stops = from_gtfs(feed.get_stops());
 
-        auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates());
+        auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates(),
+                                  date_limit);
         // Group stop times by trip
         auto& gtfs_times = feed.get_stop_times();
         // Assemble trips from the services

@@ -29,7 +29,10 @@ namespace raptor::gtfs {
      * @return Map of the GTFS service_id to the corresponding Service object. A map is returned for faster searching.
      */
     std::unordered_map<std::string, Service> from_gtfs(const ::gtfs::Calendar& calendars,
-                                                       const ::gtfs::CalendarDates& calendar_dates);
+                                                       const ::gtfs::CalendarDates& calendar_dates,
+                                                       std::optional<std::pair<std::chrono::year_month_day,
+                                                                               std::chrono::year_month_day>>
+                                                       date_limit = std::nullopt);
 
     /**
      * Creates an instantiation of a stop time, from a generic GTFS stop_time.
@@ -86,7 +89,9 @@ namespace raptor::gtfs {
                                  const std::unordered_map<std::string, std::string>& trip_id_to_route_id,
                                  const std::deque<Agency>& agencies, const ::gtfs::Routes& gtfs_routes);
 
-    Schedule from_gtfs(const ::gtfs::Feed& feed, std::optional<int> day_limit = std::nullopt);
+    Schedule from_gtfs(const ::gtfs::Feed& feed,
+                       std::optional<std::pair<std::chrono::year_month_day,
+                                               std::chrono::year_month_day>> date_limit = std::nullopt);
 
 }
 
