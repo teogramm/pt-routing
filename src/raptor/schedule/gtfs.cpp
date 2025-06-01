@@ -44,7 +44,7 @@ namespace raptor::gtfs {
         auto seconds = std::chrono::seconds(seconds_gtfs);
         auto total_duration = hours + minutes + seconds;
         // Total duration is in seconds
-        return {total_duration};
+        return total_duration;
     }
 
     std::chrono::year_month_day gtfs_date_to_ymd(const ::gtfs::Date& gtfs_date) {
@@ -63,9 +63,8 @@ namespace raptor::gtfs {
                                                                           service_day,
                                                                           const std::chrono::time_zone* time_zone) {
         auto duration = gtfs_time_to_duration(gtfs_time);
-        auto time = std::chrono::zoned_time<std::chrono::seconds>(time_zone,
-                                                                  std::chrono::local_days(service_day));
-        time = duration + time.get_local_time();
+        auto time = std::chrono::zoned_time(time_zone,
+                                            std::chrono::local_days(service_day) + duration);
         return time;
     }
 
