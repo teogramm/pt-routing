@@ -236,7 +236,7 @@ namespace raptor {
         Schedule() = delete;
 
         Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops, std::vector<Route>&& routes):
-            agencies(std::move(agencies)), stops(std::move(stops)), routes(std::move(routes)) {
+            stops(std::move(stops)), agencies(std::move(agencies)), routes(std::move(routes)) {
         }
 
     private:

@@ -39,12 +39,8 @@ namespace raptor::gtfs {
      */
     std::chrono::seconds gtfs_time_to_duration(const ::gtfs::Time& gtfs_time) {
         auto [hours_gtfs, minutes_gtfs, seconds_gtfs] = gtfs_time.get_hh_mm_ss();
-        auto hours = std::chrono::hours(hours_gtfs);
-        auto minutes = std::chrono::minutes(minutes_gtfs);
-        auto seconds = std::chrono::seconds(seconds_gtfs);
-        auto total_duration = hours + minutes + seconds;
         // Total duration is in seconds
-        return total_duration;
+        return std::chrono::seconds(60*60*hours_gtfs + 60*minutes_gtfs + seconds_gtfs);
     }
 
     std::chrono::year_month_day gtfs_date_to_ymd(const ::gtfs::Date& gtfs_date) {
@@ -97,9 +93,23 @@ namespace raptor::gtfs {
     StopTime from_gtfs(const ::gtfs::StopTime& stop_time, const std::chrono::year_month_day& service_day,
                        const std::chrono::time_zone* time_zone,
                        const Stop& stop) {
+        auto time_equal = [](const ::gtfs::Time& time_a, const ::gtfs::Time& time_b) {
+            auto [a_hours, a_minutes, a_seconds] = time_a.get_hh_mm_ss();
+            auto [b_hours, b_minutes, b_seconds] = time_b.get_hh_mm_ss();
+            return (a_hours == b_hours) && (a_minutes == b_minutes) && (a_seconds == b_seconds);
+        };
+
+        // Often the departure time is the same as the arrival time. In this case we can skip the creation of an
+        // extra object and create just a copy instead.
+        // This is probably feed dependent, but if this happens, this optimization increases performance.
         auto departure_time = gtfs_time_to_local_time(stop_time.departure_time, service_day, time_zone);
-        auto arrival_time = gtfs_time_to_local_time(stop_time.arrival_time, service_day, time_zone);;
+        if (time_equal(stop_time.departure_time, stop_time.arrival_time)) {
+            auto arrival_time = departure_time;
+            return {arrival_time, departure_time, std::cref(stop)};
+        }
+        auto arrival_time = gtfs_time_to_local_time(stop_time.arrival_time, service_day, time_zone);
         return {arrival_time, departure_time, std::cref(stop)};
+
     }
 
     /**
@@ -262,11 +272,11 @@ namespace raptor::gtfs {
         stop_times_by_trip.reserve(n_trips);
         for (const auto& stop_time : gtfs_stop_times) {
             auto& map_value = stop_times_by_trip[stop_time.trip_id];
-            map_value.emplace_back(stop_time);
+            map_value.emplace_back(std::cref(stop_time));
         }
         // First sort each stop time by its sequence
-        for (auto& st_list : stop_times_by_trip | std::views::values) {
-            std::ranges::sort(st_list, std::ranges::less{}, &::gtfs::StopTime::stop_sequence);
+        for (auto& st_vec : stop_times_by_trip | std::views::values) {
+            std::ranges::sort(st_vec, std::ranges::less{}, &::gtfs::StopTime::stop_sequence);
         }
         return stop_times_by_trip;
     }
