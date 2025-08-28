@@ -75,7 +75,7 @@ namespace raptor::gtfs {
                                std::back_inserter(stops), [](const ::gtfs::Stop& gtfs_stop) {
                                    return Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
                                                gtfs_stop.stop_lat,
-                                               gtfs_stop.stop_lon};
+                                               gtfs_stop.stop_lon, gtfs_stop.parent_station};
                                });
         return stops;
     }

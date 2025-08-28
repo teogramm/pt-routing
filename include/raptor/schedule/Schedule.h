@@ -12,10 +12,12 @@ namespace raptor {
 
     class Stop {
     public:
-        Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude) :
+        Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
+            std::string parent_stop_id) :
             name(std::move(name)),
             gtfs_id(std::move(gtfs_id)),
-            coordinates({latitude, longitude}) {
+            parent_stop_id(std::move(parent_stop_id)),
+            coordinates({latitude, longitude}){
         }
 
         [[nodiscard]] std::string_view get_name() const {
@@ -36,6 +38,7 @@ namespace raptor {
     private:
         std::string name;
         std::string gtfs_id;
+        std::string parent_stop_id;
 
         struct {
             double latitude;
