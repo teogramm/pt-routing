@@ -1,59 +1,59 @@
 #include "raptor/raptor.h"
 
+#include <ranges>
+
 #include "raptor/stop.h"
 
-#include <set>
 #include <vector>
 
 namespace raptor {
 
-    std::set<std::pair<std::string, int>> routes_serving_stop(std::string stop_id,
-                                                              gtfs::StopTimes& stop_times,
-                                                              gtfs::Trips& trips) {
-        auto trip_ids = std::unordered_map<std::string, int>();
-        for (auto& st : stop_times) {
-            if (stop_id == st.stop_id) {
-                trip_ids.insert(std::pair(st.trip_id, st.stop_sequence));
+    void Raptor::find_routes_serving_stop() {
+        // TODO: See if this can be done with ranges
+        for (const auto& route : schedule.get_routes()) {
+            // Every trip of a route shares the same stops, so just take the first trip
+            auto& first_trip = route.get_trips().front();
+            for (const auto& stop_time : first_trip.get_stop_times()) {
+                const auto& stop = stop_time.get_stop();
+                routes_serving_stop[stop].emplace(route);
             }
         }
-        auto routes = std::set<std::pair<std::string, int>>();
-        for (auto& trip : trips) {
-            if (trip_ids.contains(trip.trip_id)) {
-                routes.insert(std::pair(trip.route_id, trip_ids.at(trip.trip_id)));
-            }
-        }
-        return routes;
     }
 
-    void raptor(std::string& source_stop, std::string& target_stop,
-                int departure_time, std::vector<stop>& all_stops,
-                gtfs::StopTimes& stop_times, gtfs::Routes& routes,
-                gtfs::Trips& trips) {
-        constexpr auto n_rounds = 5;
-        auto stop_item = std::ranges::find(all_stops, source_stop, &stop::id);
-        stop_item->arrival_time[0] = departure_time;
-        auto improved_stops = std::set{source_stop};
-        for (int k = 0; k < n_rounds; k++) {
-            auto q = std::unordered_map<std::string, std::pair<std::string, int>>();
-            for (auto& s : improved_stops) {
-                auto stop_routes = routes_serving_stop(s, stop_times, trips);
-                for (auto& r : stop_routes) {
-                    auto route_id = r.first;
-                    auto sequence = r.second;
-                    if (q.contains(route_id)) {
-                        auto other_sequence = std::get<1>(q[route_id]);
-                        if (other_sequence > sequence) {
-                            q[route_id] = std::pair(s, sequence);
-                        }
-                    }
-                    else {
-                        q[route_id] = std::pair(s, sequence);
-                    }
+    void Raptor::calculate_transfers() {
+        /*TODO: Calculate on-foot transfers between different stops. For now calculates transfers between stops with
+        the same parent station. Also process GTFS transfers. Maybe all this should be done in the Schedule class.*/\
+        std::unordered_map<std::string, std::vector<std::reference_wrapper<const Stop>>> stops_per_parent_station;
+        for (const auto& stop : schedule.get_stops()) {
+            auto parent_station_id = std::string(stop.get_parent_stop_id());
+            if (!parent_station_id.empty()) {
+                stops_per_parent_station[parent_station_id].emplace_back(std::cref(stop));
+            }
+        }
+        // Create a transfer between all stops in the same parent station without a time cost.
+        for (auto& stops : stops_per_parent_station | std::views::values) {
+            // Make sure to remove the stop itself from the list of stops that can be transfered
+            if (stops.size() > 1) {
+                for (auto& stop : stops) {
+                    auto transfers_with_times = std::vector<std::pair<std::reference_wrapper<const Stop>, int>>{};
+                    auto is_not_this_stop = [&stop](const Stop& other_stop) {
+                        return stop != other_stop;
+                    };
+                    std::ranges::transform(stops | std::views::filter(is_not_this_stop),
+                                           std::back_inserter(transfers_with_times),
+                                           [](const Stop& stop) {
+                                               return std::make_pair(std::cref(stop), 0);
+                                           });
+                    this->transfers[stop] = std::move(transfers_with_times);
                 }
             }
-            improved_stops.clear();
-
-
         }
     }
+
+    Raptor::Raptor(const Schedule& schedule) :
+        schedule(schedule) {
+        find_routes_serving_stop();
+        calculate_transfers();
+    }
+
 } // namespace raptor
