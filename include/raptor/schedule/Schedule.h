@@ -32,6 +32,10 @@ namespace raptor {
             return std::make_pair(coordinates.latitude, coordinates.longitude);
         }
 
+        [[nodiscard]] std::string_view get_parent_stop_id() const {
+            return parent_stop_id;
+        }
+
         friend bool operator==(const Stop& lhs, const Stop& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
         friend bool operator!=(const Stop& lhs, const Stop& rhs) { return !(lhs == rhs); }
 
