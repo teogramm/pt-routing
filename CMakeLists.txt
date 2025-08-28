@@ -13,7 +13,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(just_gtfs)
 
-set(SOURCES src/raptor/raptor.cpp src/raptor/GTFSProvider.cpp src/raptor/schedule/Schedule.cpp
+set(SOURCES src/raptor/raptor.cpp src/raptor/schedule/Schedule.cpp
         src/raptor/schedule/gtfs.cpp)
 
 add_executable(pt_routing main.cpp ${SOURCES})
