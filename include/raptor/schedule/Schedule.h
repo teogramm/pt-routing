@@ -1,5 +1,6 @@
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
+#include <algorithm>
 #include <chrono>
 #include <deque>
 #include <utility>
@@ -142,7 +143,7 @@ namespace raptor {
     class Agency {
     public:
         Agency(std::string gtfs_id, std::string name,
-               std::string url,const std::chrono::time_zone* time_zone):
+               std::string url, const std::chrono::time_zone* time_zone):
             gtfs_id(std::move(gtfs_id)), name(std::move(name)), url(std::move(url)), time_zone(time_zone) {
         }
 
@@ -173,9 +174,9 @@ namespace raptor {
     };
 
     /**
- * A route is a collection of trips, which stop at exactly the same stops, in the same order, and have the same
- * GTFS route ID.
- */
+     * A route is a collection of trips, which stop at exactly the same stops, in the same order, and have the same
+     * GTFS route ID.
+     */
     class Route {
     public:
         Route(std::vector<Trip>&& trips, std::string short_name,
@@ -239,6 +240,14 @@ namespace raptor {
             stops(std::move(stops)), agencies(std::move(agencies)), routes(std::move(routes)) {
         }
 
+        [[nodiscard]] const std::vector<Route>& get_routes() const {
+            return routes;
+        }
+
+        [[nodiscard]] const std::deque<Stop>& get_stops() const {
+            return stops;
+        }
+
     private:
         // Use a deque to ensure references stored in StopTimes are not invalidated
         // A vector could be used instead and since it's stored as const the references should not be invalidated.
@@ -249,7 +258,6 @@ namespace raptor {
         const std::deque<Agency> agencies;
         const std::vector<Route> routes;
     };
-
 
 }
 
@@ -263,8 +271,22 @@ struct std::hash<raptor::Stop> {
 //TODO: Make this work for both const and non-const types
 template <>
 struct std::hash<std::reference_wrapper<const raptor::Stop>> {
-    size_t operator()(const std::reference_wrapper<const raptor::Stop>& stop) const {
+    size_t operator()(const std::reference_wrapper<const raptor::Stop>& stop) const noexcept {
         return std::hash<raptor::Stop>{}(stop);
+    }
+};
+
+template <>
+struct std::hash<raptor::Route> {
+    size_t operator()(const raptor::Route& route) const {
+        return std::hash<std::string_view>{}(route.get_gtfs_id());
+    }
+};
+
+template <>
+struct std::hash<std::reference_wrapper<const raptor::Route>> {
+    size_t operator()(const raptor::Route& route) const {
+        return std::hash<raptor::Route>{}(route);
     }
 };
 
