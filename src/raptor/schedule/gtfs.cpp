@@ -37,10 +37,11 @@ namespace raptor::gtfs {
      * Converts the given gtfs::Time to a duration object, corresponding to the hours after 00:00.
      * Consider that GTFS times can be longer than 24 hours.
      */
-    std::chrono::seconds gtfs_time_to_duration(const ::gtfs::Time& gtfs_time) {
+
+    Time::duration gtfs_time_to_duration(const ::gtfs::Time& gtfs_time) {
         auto [hours_gtfs, minutes_gtfs, seconds_gtfs] = gtfs_time.get_hh_mm_ss();
         // Total duration is in seconds
-        return std::chrono::seconds(60*60*hours_gtfs + 60*minutes_gtfs + seconds_gtfs);
+        return Time::duration(60 * 60 * hours_gtfs + 60 * minutes_gtfs + seconds_gtfs);
     }
 
     std::chrono::year_month_day gtfs_date_to_ymd(const ::gtfs::Date& gtfs_date) {
@@ -54,15 +55,14 @@ namespace raptor::gtfs {
     /**
      * Combines a gtfs::Time with a date and time zone to create a zoned_time.
      */
-    std::chrono::zoned_time<std::chrono::seconds> gtfs_time_to_local_time(const ::gtfs::Time& gtfs_time,
-                                                                          const std::chrono::year_month_day&
-                                                                          service_day,
-                                                                          const std::chrono::time_zone* time_zone) {
+    Time gtfs_time_to_local_time(const ::gtfs::Time& gtfs_time,
+                                 const std::chrono::year_month_day& service_day,
+                                 const std::chrono::time_zone* time_zone) {
         auto duration = gtfs_time_to_duration(gtfs_time);
         // TODO: Check if earliest is the correct option for resolution. Off the top of my head it should be since
         // the GTFS service day refers to the previous day, but must look into how earliest works.
-        auto time = std::chrono::zoned_time(time_zone,
-                                            std::chrono::local_days(service_day) + duration, std::chrono::choose::earliest);
+        auto time = Time(time_zone, std::chrono::local_days(service_day) + duration,
+                         std::chrono::choose::earliest);
         return time;
     }
 
@@ -76,8 +76,8 @@ namespace raptor::gtfs {
         std::ranges::transform(gtfs_stops | std::views::filter(is_platform),
                                std::back_inserter(stops), [](const ::gtfs::Stop& gtfs_stop) {
                                    return Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
-                                               gtfs_stop.stop_lat,
-                                               gtfs_stop.stop_lon, gtfs_stop.parent_station};
+                                               gtfs_stop.stop_lat, gtfs_stop.stop_lon,
+                                               gtfs_stop.parent_station, gtfs_stop.platform_code};
                                });
         return stops;
     }
@@ -93,8 +93,7 @@ namespace raptor::gtfs {
     }
 
     StopTime from_gtfs(const ::gtfs::StopTime& stop_time, const std::chrono::year_month_day& service_day,
-                       const std::chrono::time_zone* time_zone,
-                       const Stop& stop) {
+                       const std::chrono::time_zone* time_zone, const Stop& stop) {
         auto time_equal = [](const ::gtfs::Time& time_a, const ::gtfs::Time& time_b) {
             auto [a_hours, a_minutes, a_seconds] = time_a.get_hh_mm_ss();
             auto [b_hours, b_minutes, b_seconds] = time_b.get_hh_mm_ss();
@@ -169,9 +168,8 @@ namespace raptor::gtfs {
 
     std::unordered_map<calendar_id, Service> from_gtfs(const ::gtfs::Calendar& calendars,
                                                        const ::gtfs::CalendarDates& calendar_dates,
-                                                       const std::optional<std::pair<std::chrono::year_month_day,
-                                                           std::chrono::year_month_day>>
-                                                       & date_limit) {
+                                                       const std::optional<std::chrono::year_month_day>& from_date,
+                                                       const std::optional<std::chrono::year_month_day>& to_date) {
         using date_vector = std::vector<std::chrono::year_month_day>;
 
         auto service_dates_map = std::unordered_map<calendar_id, date_vector>{};
@@ -180,12 +178,15 @@ namespace raptor::gtfs {
         // For some reason using chrono::year::max gives a limit_end in 1969
         auto limit_start = std::chrono::year_month_day(std::chrono::year::min(), std::chrono::month{1},
                                                        std::chrono::day{1});
+        if (from_date.has_value())
+            limit_start = from_date.value();
+
         auto limit_end = std::chrono::year_month_day(std::chrono::year::max(), std::chrono::month{12},
                                                      std::chrono::day{31});
-        if (date_limit != std::nullopt) {
-            limit_start = std::get<0>(*date_limit);
-            limit_end = std::get<1>(*date_limit);
-        }
+        if (to_date.has_value())
+            limit_end = to_date.value();
+
+
         assert(limit_end >= limit_start);
 
         auto parse_calendar = [&limit_start, &limit_end, &service_dates_map](const ::gtfs::CalendarItem& calendar) {
@@ -379,8 +380,8 @@ namespace raptor::gtfs {
     }
 
     Schedule from_gtfs(const ::gtfs::Feed& feed,
-                       const std::optional<std::pair<std::chrono::year_month_day,
-                                                     std::chrono::year_month_day>>& date_limit) {
+                       const std::optional<std::chrono::year_month_day>& from_date,
+                       const std::optional<std::chrono::year_month_day>& to_date) {
         // TODO: Add day limit
         // TODO: Get the timezone from each agency
         auto agencies = from_gtfs(feed.get_agencies());
@@ -389,7 +390,7 @@ namespace raptor::gtfs {
         auto stops = from_gtfs(feed.get_stops());
 
         auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates(),
-                                  date_limit);
+                                  from_date, to_date);
         // Group stop times by trip
         auto& gtfs_times = feed.get_stop_times();
         // Assemble trips from the services

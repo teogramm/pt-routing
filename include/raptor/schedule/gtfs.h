@@ -30,9 +30,10 @@ namespace raptor::gtfs {
      */
     std::unordered_map<std::string, Service> from_gtfs(const ::gtfs::Calendar& calendars,
                                                        const ::gtfs::CalendarDates& calendar_dates,
-                                                       const std::optional<std::pair<std::chrono::year_month_day,
-                                                           std::chrono::year_month_day>>&
-                                                               date_limit = std::nullopt);
+                                                       const std::optional<std::chrono::year_month_day>& from_date =
+                                                               std::nullopt,
+                                                       const std::optional<std::chrono::year_month_day>& to_date =
+                                                               std::nullopt);
 
     /**
      * Creates an instantiation of a stop time, from a generic GTFS stop_time.
@@ -72,8 +73,8 @@ namespace raptor::gtfs {
      * Converts the given GTFS trip objects to raptor Trips.
      * @param gtfs_trips
      * @param services Map of GTFS service ids to the corresponding Service objects.
-     * @param gtfs_stop_times
-     * @param time_zone
+     * @param gtfs_stop_times The GTFS stop times that will be assigned to the trips.
+     * @param time_zone Time zone for all the stop times.
      * @param stops All stop objects.
      * @return
      */
@@ -85,13 +86,29 @@ namespace raptor::gtfs {
               const std::deque<Stop>& stops
             );
 
+    /**
+     * Creates Route objects using existing Trip objects and the GTFS route information.
+     * @param trips Vector of Trip objects that will be assigned to the routes.
+     * @param trip_id_to_route_id Map matching each trip's GTFS ID to the corresponding route's GTFS ID.
+     * @param gtfs_routes GTFS Route objects, used for getting additional information about the routes.
+     * @return
+     */
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
                                  const std::unordered_map<std::string, std::string>& trip_id_to_route_id,
                                  const std::deque<Agency>& agencies, const ::gtfs::Routes& gtfs_routes);
 
+    /**
+     * Construct a Schedule from a GTFS feed. The schedule instantiates and creates specific trips for all the dates
+     * in the given date range.
+     *
+     * @param feed GTFS feed. The read_feed method must have been already called.
+     * @param from_date Trips occurring on and after this date will be instantiated.
+     * @param to_date Trips occurring on and before this date will be instantiated.
+     * @return
+     */
     Schedule from_gtfs(const ::gtfs::Feed& feed,
-                       const std::optional<std::pair<std::chrono::year_month_day,
-                                                     std::chrono::year_month_day>>& date_limit = std::nullopt);
+                       const std::optional<std::chrono::year_month_day>& from_date = std::nullopt,
+                       const std::optional<std::chrono::year_month_day>& to_date = std::nullopt);
 
 }
 

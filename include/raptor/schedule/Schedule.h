@@ -1,5 +1,6 @@
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
+
 #include <algorithm>
 #include <chrono>
 #include <deque>
@@ -8,16 +9,17 @@
 
 
 namespace raptor {
-
+    using Time = std::chrono::zoned_seconds;
 
     class Stop {
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
-            std::string parent_stop_id) :
+             std::string parent_stop_id, std::string platform_code) :
             name(std::move(name)),
             gtfs_id(std::move(gtfs_id)),
             parent_stop_id(std::move(parent_stop_id)),
-            coordinates({latitude, longitude}){
+            coordinates({latitude, longitude}),
+            platform_code(platform_code) {
         }
 
         [[nodiscard]] std::string_view get_name() const {
@@ -36,6 +38,10 @@ namespace raptor {
             return parent_stop_id;
         }
 
+        [[nodiscard]] std::string_view get_platform_code() const {
+            return platform_code;
+        }
+
         friend bool operator==(const Stop& lhs, const Stop& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
         friend bool operator!=(const Stop& lhs, const Stop& rhs) { return !(lhs == rhs); }
 
@@ -43,6 +49,7 @@ namespace raptor {
         std::string name;
         std::string gtfs_id;
         std::string parent_stop_id;
+        std::string platform_code;
 
         struct {
             double latitude;
@@ -55,18 +62,17 @@ namespace raptor {
      */
     class StopTime {
     public:
-        StopTime(const std::chrono::zoned_time<std::chrono::seconds>& arrival_time,
-                 const std::chrono::zoned_time<std::chrono::seconds>& departure_time, const Stop& stop) :
+        StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) :
             arrival_time(arrival_time),
             departure_time(departure_time),
             stop(stop) {
         }
 
-        [[nodiscard]] std::chrono::zoned_time<std::chrono::seconds> get_arrival_time() const {
+        [[nodiscard]] Time get_arrival_time() const {
             return arrival_time;
         }
 
-        [[nodiscard]] std::chrono::zoned_time<std::chrono::seconds> get_departure_time() const {
+        [[nodiscard]] Time get_departure_time() const {
             return departure_time;
         }
 
@@ -75,8 +81,8 @@ namespace raptor {
         }
 
     private:
-        std::chrono::zoned_time<std::chrono::seconds> arrival_time;
-        std::chrono::zoned_time<std::chrono::seconds> departure_time;
+        Time arrival_time;
+        Time departure_time;
         const Stop& stop;
     };
 
@@ -131,13 +137,25 @@ namespace raptor {
             return shape_gtfs_id;
         }
 
+        [[nodiscard]] const StopTime& get_stop_time(const Stop& stop) const {
+            auto stop_time = std::ranges::find(stop_times, stop.get_gtfs_id(), [](auto&& st) {
+                return st.get_stop().get_gtfs_id();
+            });
+            if (stop_time == stop_times.end()) {
+                throw std::invalid_argument("Trip does not stop at given stop.");
+            }
+            return *stop_time;
+        }
+
+        // TODO: Check this, since we instantiate GTFS trips, comparing the GTFS ID is not enough, we also need
+        // to care about he service day.
         friend bool operator==(const Trip& lhs, const Trip& rhs) { return lhs.trip_gtfs_id == rhs.trip_gtfs_id; }
         friend bool operator!=(const Trip& lhs, const Trip& rhs) { return !(lhs == rhs); }
 
         /**
          * @return Departure time for the specific instantiation of this trip.
          */
-        [[nodiscard]] std::chrono::zoned_time<std::chrono::seconds> departure_time() const {
+        [[nodiscard]] Time departure_time() const {
             return stop_times.front().get_departure_time();
         };
 
@@ -150,7 +168,7 @@ namespace raptor {
     class Agency {
     public:
         Agency(std::string gtfs_id, std::string name,
-               std::string url, const std::chrono::time_zone* time_zone):
+               std::string url, const std::chrono::time_zone* time_zone) :
             gtfs_id(std::move(gtfs_id)), name(std::move(name)), url(std::move(url)), time_zone(time_zone) {
         }
 
@@ -235,7 +253,7 @@ namespace raptor {
         std::string short_name;
         std::string long_name;
         std::string gtfs_id;
-        const Agency& agency;
+        std::reference_wrapper<const Agency> agency;
     };
 
 
@@ -243,7 +261,7 @@ namespace raptor {
     public:
         Schedule() = delete;
 
-        Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops, std::vector<Route>&& routes):
+        Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops, std::vector<Route>&& routes) :
             stops(std::move(stops)), agencies(std::move(agencies)), routes(std::move(routes)) {
         }
 
