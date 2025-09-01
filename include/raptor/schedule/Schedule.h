@@ -131,6 +131,16 @@ namespace raptor {
             return shape_gtfs_id;
         }
 
+        [[nodiscard]] const StopTime& get_stop_time(const Stop& stop) const {
+            auto stop_time = std::ranges::find(stop_times, stop.get_gtfs_id(), [](auto&& st) {
+                return st.get_stop().get_gtfs_id();
+            });
+            if (stop_time == stop_times.end()) {
+                throw std::invalid_argument("Trip does not stop at given stop.");
+            }
+            return *stop_time;
+        }
+
         friend bool operator==(const Trip& lhs, const Trip& rhs) { return lhs.trip_gtfs_id == rhs.trip_gtfs_id; }
         friend bool operator!=(const Trip& lhs, const Trip& rhs) { return !(lhs == rhs); }
 
@@ -235,7 +245,7 @@ namespace raptor {
         std::string short_name;
         std::string long_name;
         std::string gtfs_id;
-        const Agency& agency;
+        std::reference_wrapper<const Agency> agency;
     };
 
 
