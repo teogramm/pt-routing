@@ -5,13 +5,20 @@
 
 namespace raptor {
 
+
+    struct JourneyInformation {
+        int arrival_time;
+        std::reference_wrapper<const Stop> boarding_stop;
+        std::reference_wrapper<const Trip> trip;
+    };
+
     class RaptorLabel {
-        std::vector<std::optional<std::pair<int, std::reference_wrapper<const Stop>>>> labels;
+        std::vector<std::optional<JourneyInformation>> labels;
 
     public:
         RaptorLabel() = default;
 
-        [[nodiscard]] std::optional<std::pair<int, std::reference_wrapper<const Stop>>>
+        [[nodiscard]] std::optional<JourneyInformation>
         get_label(const int n_transfers) const {
             assert(n_transfers >= 0);
             // size() - 1 overflows when size is 0
@@ -23,14 +30,20 @@ namespace raptor {
         }
 
         void add_label(const int n_transfers, const int arrival_time,
-                       const Stop& stop) {
+                       const Stop& stop, const Trip& trip) {
             // We might need to pad the vector, if we can only get to a stop for example with 3 changes
             if (n_transfers > labels.size()) {
-                for (size_t i = 0; i < n_transfers; i++) {
-                    labels.emplace_back(std::nullopt);
-                }
+                labels.insert(std::end(labels), n_transfers - labels.size(), std::nullopt);
             }
-            labels.emplace_back(std::make_pair(arrival_time, std::cref(stop)));
+            labels.emplace(std::begin(labels) + n_transfers, JourneyInformation{arrival_time, stop, trip});
+        }
+
+        void add_label(const int n_transfers, const std::optional<JourneyInformation>& label) {
+            // We might need to pad the vector, if we can only get to a stop for example with 3 changes
+            if (n_transfers > labels.size()) {
+                labels.insert(std::end(labels), n_transfers - labels.size(), std::nullopt);
+            }
+            labels.emplace(std::begin(labels) + n_transfers, label);
         }
     };
 
