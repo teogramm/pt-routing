@@ -59,8 +59,10 @@ namespace raptor::gtfs {
                                                                           service_day,
                                                                           const std::chrono::time_zone* time_zone) {
         auto duration = gtfs_time_to_duration(gtfs_time);
+        // TODO: Check if earliest is the correct option for resolution. Off the top of my head it should be since
+        // the GTFS service day refers to the previous day, but must look into how earliest works.
         auto time = std::chrono::zoned_time(time_zone,
-                                            std::chrono::local_days(service_day) + duration);
+                                            std::chrono::local_days(service_day) + duration, std::chrono::choose::earliest);
         return time;
     }
 
@@ -363,6 +365,10 @@ namespace raptor::gtfs {
             auto& gtfs_route = gtfs_route_index.at(route_gtfs_id);
             auto& agency = agencies_index.at(gtfs_route.get().agency_id);
 
+            // TODO: Check performance.
+            std::ranges::sort(route_trips, std::less{}, [](const Trip& trip) {
+                return trip.get_stop_times()[0].get_departure_time().get_sys_time();
+            });
             route_trips.shrink_to_fit();
 
             auto& short_name = gtfs_route.get().route_short_name;
