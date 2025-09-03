@@ -100,15 +100,7 @@ namespace raptor {
                     const auto& route_trips = route.get_trips();
                     // TODO: Check with upper_bound
                     auto hop_on_time = hop_on_journey.arrival_time;
-                    auto earliest_trip = std::ranges::find_if(route_trips,
-                                                              [hop_on_time, hop_on_stop](const auto& trip) {
-                                                                  const auto& trip_departure_time = trip.
-                                                                          get_stop_time(*hop_on_stop).get_departure_time();
-                                                                  return trip_departure_time.
-                                                                          get_sys_time().time_since_epoch().count() >
-                                                                          hop_on_time;
-                                                              });
-                    if (earliest_trip != route_trips.end()) {
+                    if (auto earliest_trip = find_earliest_trip(route_trips, hop_on_time, *hop_on_stop); earliest_trip != route_trips.end()) {
                         auto& trip = *earliest_trip;
                         auto current_stop_time = std::ranges::find(trip.get_stop_times(), *hop_on_stop, &StopTime::get_stop);
                         auto end_guard = trip.get_stop_times().end();
@@ -126,14 +118,7 @@ namespace raptor {
                             // TODO: If the optimal arrival time is before the current arrival time we might be able to catch
                             // an earlier trip at that stop
                             else if (existing_journey->arrival_time < new_arrival_time) {
-                                auto earlier_trip = std::ranges::find_if(route_trips,
-                                                              [&existing_journey, current_stop_time](const auto& trip) {
-                                                                  const auto& trip_departure_time = trip.
-                                                                          get_stop_time(current_stop_time->get_stop()).get_departure_time();
-                                                                  return trip_departure_time.
-                                                                          get_sys_time().time_since_epoch().count() >
-                                                                          existing_journey->arrival_time;
-                                                              });
+                                auto earlier_trip = find_earliest_trip(route_trips, existing_journey->arrival_time, current_stop);
                                 // From now on we are following a different trip
                                 if (earlier_trip != earliest_trip) {
                                     earliest_trip = earlier_trip;

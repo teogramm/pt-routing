@@ -72,6 +72,19 @@ namespace raptor {
         void build_trip(const Stop& origin,
                         const Stop& destination, const std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>& stop_labels);
 
+        template<std::ranges::random_access_range R>
+        requires std::is_convertible_v<std::ranges::range_value_t<R>, Trip>
+        std::ranges::borrowed_iterator_t<R&> find_earliest_trip(R&& route_trips, int departure_time, const Stop& origin) {
+            return std::ranges::find_if(route_trips,
+                                                              [departure_time, &origin](const auto& trip) {
+                                                                  const auto& trip_departure_time = trip.
+                                                                          get_stop_time(origin).get_departure_time();
+                                                                  return trip_departure_time.
+                                                                          get_sys_time().time_since_epoch().count() >
+                                                                          departure_time;
+                                                              });
+        }
+
         void route(const Stop& origin, const Stop& destination,
                    const std::chrono::zoned_time<std::chrono::seconds>& departure_time);
     };
