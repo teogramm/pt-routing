@@ -29,6 +29,14 @@ namespace raptor {
             return labels[n_transfers];
         }
 
+        [[nodiscard]] std::optional<JourneyInformation>
+        get_label() const {
+            if (labels.empty()) {
+                return std::nullopt;
+            }
+            return labels.back();
+        }
+
         void add_label(const int n_transfers, const int arrival_time,
                        const Stop& stop, const Trip& trip) {
             // We might need to pad the vector, if we can only get to a stop for example with 3 changes
@@ -61,6 +69,8 @@ namespace raptor {
 
     public:
         explicit Raptor(const Schedule& schedule);
+        void build_trip(const Stop& origin,
+                        const Stop& destination, const std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>& stop_labels);
 
         void route(const Stop& origin, const Stop& destination,
                    const std::chrono::zoned_time<std::chrono::seconds>& departure_time);

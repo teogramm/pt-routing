@@ -5,6 +5,7 @@
 #include "raptor/stop.h"
 
 #include <vector>
+#include <iostream>
 
 namespace raptor {
     void Raptor::find_routes_serving_stop() {
@@ -54,8 +55,21 @@ namespace raptor {
         calculate_transfers();
     }
 
+    void Raptor::build_trip(const Stop& origin, const Stop& destination,
+        const std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>& stop_labels) {
+        auto current_stop = std::cref(destination);
+        while (current_stop != origin) {
+            auto& transfers = this->transfers[current_stop];
+            auto label = stop_labels.at(std::cref(current_stop)).get_label();
+            auto journey_to_here = stop_labels.at(std::cref(current_stop)).get_label().value();
+            auto& boarding_stop = journey_to_here.boarding_stop;
+            std::cout << boarding_stop.get().get_name() << "-" << current_stop.get().get_name() << std::endl;
+            current_stop = boarding_stop;
+        }
+    }
+
     void Raptor::route(const Stop& origin, const Stop& destination,
-                       const std::chrono::zoned_time<std::chrono::seconds>& departure_time) {
+                       const std::chrono::zoned_seconds& departure_time) {
         int n_round = 0;
         auto stop_labels = std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>();
         auto dummy_start_trip = Trip({}, "dummy", "dummy");
@@ -150,6 +164,6 @@ namespace raptor {
             }
             ++n_round;
         }
-        return;
+        build_trip(origin, destination, stop_labels);
     }
 } // namespace raptor
