@@ -19,15 +19,21 @@ namespace raptor {
 
         void add_label(const int n_transfers, const std::optional<JourneyInformation>& label) {
             // We can only add a new label to the end or update the latest one
-            assert(n_transfers == labels.size() || (labels.size() > 0 && n_transfers == (labels.size() - 1)));
-            labels.emplace(std::begin(labels) + n_transfers, label);
+            assert(n_transfers == labels.size() || (!labels.empty() && n_transfers == (labels.size() - 1)));
+            // Check whether we are extending or changing an existing element
+            // TODO: Split functions
+            if (n_transfers == labels.size()) {
+                labels.emplace_back(label);
+            }else if (n_transfers < labels.size()) {
+                labels.at(n_transfers) = label;
+            }
         }
 
     public:
         RaptorLabel() = default;
 
         explicit RaptorLabel(const int n_transfers) {
-            labels = std::vector<std::optional<JourneyInformation>>(n_transfers, std::nullopt);
+            labels = std::vector<std::optional<JourneyInformation>>(n_transfers + 1, std::nullopt);
         }
 
         [[nodiscard]] std::optional<JourneyInformation>
@@ -59,7 +65,7 @@ namespace raptor {
          * Copy the value from n_transfers-1
          */
         void add_label(const int n_transfers) {
-            assert(n_transfers == labels.size());
+            assert(!labels.empty() && n_transfers == labels.size());
             auto previous_label = labels.back();
             add_label(n_transfers, previous_label);
         }
