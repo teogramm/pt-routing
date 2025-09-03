@@ -7,9 +7,9 @@ namespace raptor {
 
 
     struct JourneyInformation {
-        int arrival_time;
+        std::chrono::zoned_seconds arrival_time;
         std::reference_wrapper<const Stop> boarding_stop;
-        std::reference_wrapper<const Trip> trip;
+        // std::reference_wrapper<const Route> route;
     };
 
     class RaptorLabel {
@@ -37,13 +37,11 @@ namespace raptor {
             return labels.back();
         }
 
-        void add_label(const int n_transfers, const int arrival_time,
-                       const Stop& stop, const Trip& trip) {
+        void add_label(const int n_transfers, const std::chrono::zoned_seconds& arrival_time,
+                       const Stop& stop) {
             // We might need to pad the vector, if we can only get to a stop for example with 3 changes
-            if (n_transfers > labels.size()) {
-                labels.insert(std::end(labels), n_transfers - labels.size(), std::nullopt);
-            }
-            labels.emplace(std::begin(labels) + n_transfers, JourneyInformation{arrival_time, stop, trip});
+            auto information = std::make_optional<JourneyInformation>(arrival_time, stop);
+            add_label(n_transfers, information);
         }
 
         void add_label(const int n_transfers, const std::optional<JourneyInformation>& label) {
@@ -62,7 +60,7 @@ namespace raptor {
         void find_routes_serving_stop();
 
         std::unordered_map<std::reference_wrapper<const Stop>,
-                           std::vector<std::pair<std::reference_wrapper<const Stop>, int>>> transfers;
+                           std::vector<std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>>> transfers;
         void calculate_transfers();
 
         const Schedule& schedule;
@@ -70,19 +68,20 @@ namespace raptor {
     public:
         explicit Raptor(const Schedule& schedule);
         void build_trip(const Stop& origin,
-                        const Stop& destination, const std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>& stop_labels);
+                        const Stop& destination,
+                        const std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>& stop_labels);
 
-        template<std::ranges::random_access_range R>
-        requires std::is_convertible_v<std::ranges::range_value_t<R>, Trip>
-        std::ranges::borrowed_iterator_t<R&> find_earliest_trip(R&& route_trips, int departure_time, const Stop& origin) {
+        template <std::ranges::random_access_range R>
+            requires std::is_convertible_v<std::ranges::range_value_t<R>, Trip>
+        std::ranges::borrowed_iterator_t<R&> find_earliest_trip(R&& route_trips,
+                                                                const std::chrono::zoned_seconds& departure_time,
+                                                                const Stop& origin) {
             return std::ranges::find_if(route_trips,
-                                                              [departure_time, &origin](const auto& trip) {
-                                                                  const auto& trip_departure_time = trip.
-                                                                          get_stop_time(origin).get_departure_time();
-                                                                  return trip_departure_time.
-                                                                          get_sys_time().time_since_epoch().count() >
-                                                                          departure_time;
-                                                              });
+                                        [&departure_time](const auto& trip_departure_time) {
+                                            return trip_departure_time > departure_time.get_sys_time();
+                                        }, [&origin](const Trip& trip) {
+                                            return trip.get_stop_time(origin).get_departure_time().get_sys_time();
+                                        });
         }
 
         void route(const Stop& origin, const Stop& destination,
