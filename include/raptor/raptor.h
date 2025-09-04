@@ -11,66 +11,120 @@ namespace raptor {
     struct JourneyInformation {
         std::chrono::zoned_seconds arrival_time;
         std::reference_wrapper<const Stop> boarding_stop;
-        // std::reference_wrapper<const Route> route;
+        std::optional<std::reference_wrapper<const Route>> route;
     };
 
+    /**
+     * Represents a Raptor multilabel for a given stop, which contains information about how to reach that stop
+     * with a certain number of transfers.
+     *
+     * To modify the object two actions can be performed:
+     * * Extending the label, either by copying the last value or by setting it to an empty optional.
+     * * Changing the content of the last value.
+     * This way once the label is extended, all but the latest value become read-only.
+     */
     class RaptorLabel {
+        // TODO: Move responsibility for ensuring the labels are all the same size to the LabelManager.
         std::vector<std::optional<JourneyInformation>> labels;
 
-        void add_label(const int n_transfers, const std::optional<JourneyInformation>& label) {
-            // We can only add a new label to the end or update the latest one
-            assert(n_transfers == labels.size() || (!labels.empty() && n_transfers == (labels.size() - 1)));
-            // Check whether we are extending or changing an existing element
-            // TODO: Split functions
-            if (n_transfers == labels.size()) {
-                labels.emplace_back(label);
-            }else if (n_transfers < labels.size()) {
-                labels.at(n_transfers) = label;
+        /**
+         * Extends the label by adding the given value to the end of the label.
+         * @param n_transfers The number of transfers that the given value refers to. Used for verification that
+         * the object is being used correctly.
+         * @param value Information about reaching the object with at most n_transfers.
+         */
+        void add_value(const int n_transfers, const std::optional<JourneyInformation>& value) {
+            if(n_transfers != labels.size()) {
+                throw std::invalid_argument(
+                    // TODO: Maybe these checks should be carried out by the LabelManager
+                    "A new label can only be added for a larger n_transfers than the label already contains.");
             }
+            labels.emplace_back(value);
+        }
+
+        /**
+         * Modify an existing value of the label. Only the latest value added to the label (with the highest
+         * n_transfers) can be modified.
+         * @param n_transfers The number of transfers that the given value refers to. Used for verification that
+         * the object is being used correctly.
+         * @param label Information about reaching the object with at most n_transfers.
+         */
+        void change_value(const int n_transfers, const std::optional<JourneyInformation>& label) {
+            if (n_transfers + 1 != labels.size()) {
+                throw std::invalid_argument("Only the last label can be modified.");
+            }
+            labels.at(n_transfers) = label;
         }
 
     public:
         RaptorLabel() = default;
 
+        /**
+         * Creates a label containing empty values up to and including the given number of transfers.
+         */
         explicit RaptorLabel(const int n_transfers) {
             labels = std::vector<std::optional<JourneyInformation>>(n_transfers + 1, std::nullopt);
         }
 
+        /**
+         * Get the label associated with the given number of transfers.
+         * @param n_transfers The maximum number of transfers required for reaching the stop.
+         * @return Optional that contains a value if journey information exists for reaching the stop with the
+         * given number of transfers.
+         */
         [[nodiscard]] std::optional<JourneyInformation>
         get_label(const int n_transfers) const {
-            assert(n_transfers >= 0);
-            // size() - 1 overflows when size is 0
-            //
             if (labels.empty()) {
                 return std::nullopt;
             }
-            return labels[n_transfers];
-        }
-
-        // [[nodiscard]] std::optional<JourneyInformation>
-        // get_label() const {
-        //     if (labels.empty()) {
-        //         return std::nullopt;
-        //     }
-        //     return labels.back();
-        // }
-
-        void add_label(const int n_transfers, const std::chrono::zoned_seconds& arrival_time,
-                       const Stop& boarding_stop) {
-            auto label = std::make_optional<JourneyInformation>(arrival_time, boarding_stop);
-            add_label(n_transfers, label);
+            if (n_transfers < labels.size() && n_transfers > 0) {
+                return labels.at(n_transfers);
+            }
+            throw std::out_of_range("");
         }
 
         /**
-         * Copy the value from n_transfers-1
+         * Extends the label by adding a new value for the given number of transfers.
+         * @param n_transfers The number of transfers that the given value refers to. Used for verification that
+         * the object is being used correctly.
+         * @param arrival_time Arrival time at the stop.
+         * @param boarding_stop Stop where the line is boarded to reach the stop.
+         * @param route Route used to travel between the stops.
          */
-        void add_label(const int n_transfers) {
+        void add_value(const int n_transfers, const std::chrono::zoned_seconds& arrival_time,
+                       const Stop& boarding_stop, const std::optional<std::reference_wrapper<const Route>> route) {
+            auto label = std::make_optional<JourneyInformation>(arrival_time, boarding_stop, route);
+            add_value(n_transfers, label);
+        }
+
+        /**
+         * Changes the latest value of the label.
+         * @param n_transfers The number of transfers that the given value refers to. Used for verification that
+         * the object is being used correctly.
+         * @param arrival_time Arrival time at the stop.
+         * @param boarding_stop Stop where the line is boarded to reach the stop.
+         * @param route Route used to travel between the stops.
+         */
+        void change_value(const int n_transfers, const std::chrono::zoned_seconds& arrival_time,
+                       const Stop& boarding_stop, const std::optional<std::reference_wrapper<const Route>> route) {
+            auto label = std::make_optional<JourneyInformation>(arrival_time, boarding_stop, route);
+            change_value(n_transfers, label);
+        }
+
+        /**
+         * Extends the label by copying the latest value.
+         * @param n_transfers Used for verification that the object is being used correctly.
+         */
+        void copy_latest_value(const int n_transfers) {
             assert(!labels.empty() && n_transfers == labels.size());
             auto previous_label = labels.back();
-            add_label(n_transfers, previous_label);
+            add_value(n_transfers, previous_label);
         }
     };
 
+    /**
+     * LabelManager is responsible for controlling the labels associated with each Stop.
+     */
     class LabelManager {
         // Should ensure that labels for all stops are the same size
         using LabelContainer = std::unordered_map<std::reference_wrapper<const Stop>, RaptorLabel>;
@@ -88,14 +142,15 @@ namespace raptor {
 
         void extend_labels(const int n_transfers) {
             for (auto& label : stop_labels | std::ranges::views::values) {
-                label.add_label(n_transfers);
+                label.copy_latest_value(n_transfers);
             }
         }
 
-        void add_label(const int n_transfers, const std::chrono::zoned_seconds& arrival_time,
-                       const Stop& stop, const Stop& boarding_stop) {
+        void add_label(const Stop& stop, const int n_transfers,
+                       const std::chrono::zoned_seconds& arrival_time, const Stop& boarding_stop,
+                       const std::optional<std::reference_wrapper<const Route>> route) {
             auto& stop_label = get_or_insert_label(n_transfers, stop);
-            stop_label.add_label(n_transfers, arrival_time, boarding_stop);
+            stop_label.add_value(n_transfers, arrival_time, boarding_stop, route);
         }
 
         std::optional<JourneyInformation> get_label(const int n_transfers, const Stop& stop) const {
@@ -104,6 +159,13 @@ namespace raptor {
             return stop_labels.at(stop).get_label(n_transfers);
         }
 
+        /**
+         * Get the first stop of the route that can be reached using at most the given number of transfers.
+         * @param stops Range containing stop objects for this route in travel order.
+         * @param n_transfers Maximum number of transfers to reach the given stop.
+         * @return Pair containing a reference to the stop and the arrival time to the stop. No value if there is no
+         * stop in the given route that can be reached with the given number of transfers.
+         */
         template <std::ranges::input_range R>
             requires std::is_convertible_v<std::ranges::range_value_t<R>, Stop>
         std::optional<std::pair<std::reference_wrapper<const Stop>, std::chrono::zoned_seconds>> find_hop_on_stop(
