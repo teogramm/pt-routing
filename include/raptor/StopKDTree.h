@@ -2,7 +2,7 @@
 #define PT_ROUTING_KDTREESTOPVECTORADAPTOR_H
 
 #include <deque>
-
+#include <nanoflann.hpp>
 
 /**
  * KD Tree for Stops.
@@ -24,8 +24,8 @@ namespace raptor {
         };
 
     private:
-        using AdaptorType = nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StopKDTree>,
-                                                                StopKDTree, 3>;
+        using AdaptorType =
+        nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StopKDTree>, StopKDTree, 3>;
 
         const std::deque<Stop>& stops;
         std::vector<std::array<double, 3>> stops_with_cartesian_coords;
@@ -62,9 +62,16 @@ namespace raptor {
             return ret_matches;
         }
 
+        /**
+         * Converts the results returned by the nanoflann library to a vector of StopWithDistance objects.
+         *
+         *
+         * @param flann_results Range containing the nanoflann:ResultItem objects.
+         * @return
+         */
         template <std::ranges::input_range R>
             requires std::is_same_v<std::ranges::range_value_t<R>, nanoflann::ResultItem<uint32_t>>
-        std::vector<StopWithDistance> convert_flann_results(R&& flann_results) const{
+        std::vector<StopWithDistance> convert_flann_results(R&& flann_results) const {
             auto results = std::vector<StopWithDistance>();
             std::ranges::transform(flann_results, std::back_inserter(results),
                                    [this](const auto& match) {
@@ -98,8 +105,9 @@ namespace raptor {
          *
          * @param stop Stop object. Doesn't need to be included in the stops that were given when constructing the
          * object.
+         * @param radius_km Search radius in kilometres.
          * @return Vector with search results, containing each stop inside the radius, along with the distance from
-         * the given stop.
+         * the given stop. Does not include the given stop.
          */
         [[nodiscard]] std::vector<StopWithDistance> stops_in_radius(const Stop& stop, double radius_km) const {
             auto stop_cartesian_coords = to_cartesian(stop.get_coordinates());
@@ -110,7 +118,7 @@ namespace raptor {
                 return stop != stops.at(result_item.first);
             };
 
-            auto results = convert_flann_results(ret_matches);
+            auto results = convert_flann_results(ret_matches | std::views::filter(is_not_search_stop));
 
             return results;
         }
@@ -122,9 +130,9 @@ namespace raptor {
          * Has better performance than stops_in_radius(const Stop&, double), as it avoids converting between coordinate
          * systems twice.
          * @param radius_km Search radius in kilometres.
-         * @return
+         * @return Vector containing each Stop and all other Stops inside the given radius.
          */
-        [[nodiscard]] std::vector<StopsInRadius> stops_in_radius(double radius_km) const {
+        [[nodiscard]] std::vector<StopsInRadius> stops_in_radius(const double radius_km) const {
             auto results = std::vector<StopsInRadius>();
             results.reserve(stops.size());
 
@@ -136,9 +144,11 @@ namespace raptor {
                     return result_item.first != i;
                 };
 
-                auto converted_stops = convert_flann_results(nearby_stops | std::ranges::views::filter(is_not_current_stop));
+                auto converted_stops = convert_flann_results(
+                        nearby_stops | std::ranges::views::filter(is_not_current_stop));
                 results.emplace_back(stops.at(i), std::move(converted_stops));
             }
+            return results;
         }
 
         /*
