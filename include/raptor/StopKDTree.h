@@ -36,17 +36,8 @@ namespace raptor {
          * @param coordinates <Latitude, Longitude> pair
          * @return Array containing 3-dimensional cartesian coordinates
          */
-        static std::array<double, 3> to_cartesian(const std::pair<double, double>& coordinates) {
-            auto latitude = coordinates.first * (M_PI / 180.0);
-            auto longitude = coordinates.second * (M_PI / 180.0);
+        static std::array<double, 3> to_cartesian(const std::pair<double, double>& coordinates);
 
-            auto R = 6371.0;
-            auto X = R * std::cos(latitude) * std::cos(longitude);
-            auto Y = R * std::cos(latitude) * std::sin(longitude);
-            auto Z = R * std::sin(latitude);
-
-            return {X, Y, Z};
-        }
 
         /**
          * Calculates all stops in radius of the given cartesian coordinates.
@@ -56,11 +47,7 @@ namespace raptor {
          * @return Vector of nanoflann result items.
          */
         [[nodiscard]] std::vector<nanoflann::ResultItem<uint32_t>> stops_in_radius(
-                const std::array<double, 3>& cartesian_coords, double radius_km) const {
-            std::vector<nanoflann::ResultItem<uint32_t>> ret_matches;
-            index->radiusSearch(cartesian_coords.data(), std::sqrt(radius_km), ret_matches);
-            return ret_matches;
-        }
+                const std::array<double, 3>& cartesian_coords, double radius_km) const;
 
         /**
          * Converts the results returned by the nanoflann library to a vector of StopWithDistance objects.
@@ -82,20 +69,14 @@ namespace raptor {
         }
 
     public:
+
+        StopKDTree() = delete;
+
         /**
          * Constructs a new index, including points for the given stops.
          * @param stops Reference to a deque container. Its lifetime must be longer than the object's.
          */
-        explicit StopKDTree(const std::deque<Stop>& stops) :
-            stops(stops) {
-            stops_with_cartesian_coords = std::vector<std::array<double, 3>>();
-            stops_with_cartesian_coords.reserve(stops.size());
-            std::ranges::transform(stops, std::back_inserter(stops_with_cartesian_coords),
-                                   [](const std::pair<double, double>& coords) {
-                                       return to_cartesian(coords);
-                                   }, &Stop::get_coordinates);
-            index = std::make_unique<AdaptorType>(3, *this);
-        }
+        explicit StopKDTree(const std::deque<Stop>& stops);
 
         /**
          * Calculates all stops in radius of the given stop.
@@ -109,19 +90,7 @@ namespace raptor {
          * @return Vector with search results, containing each stop inside the radius, along with the distance from
          * the given stop. Does not include the given stop.
          */
-        [[nodiscard]] std::vector<StopWithDistance> stops_in_radius(const Stop& stop, double radius_km) const {
-            auto stop_cartesian_coords = to_cartesian(stop.get_coordinates());
-
-            auto ret_matches = stops_in_radius(stop_cartesian_coords, radius_km);
-
-            auto is_not_search_stop = [this, stop](const nanoflann::ResultItem<uint32_t>& result_item) {
-                return stop != stops.at(result_item.first);
-            };
-
-            auto results = convert_flann_results(ret_matches | std::views::filter(is_not_search_stop));
-
-            return results;
-        }
+        [[nodiscard]] std::vector<StopWithDistance> stops_in_radius(const Stop& stop, double radius_km) const;
 
         /**
          * For all the stops given during construction of the object, calculates all other stops within the given
@@ -132,24 +101,7 @@ namespace raptor {
          * @param radius_km Search radius in kilometres.
          * @return Vector containing each Stop and all other Stops inside the given radius.
          */
-        [[nodiscard]] std::vector<StopsInRadius> stops_in_radius(const double radius_km) const {
-            auto results = std::vector<StopsInRadius>();
-            results.reserve(stops.size());
-
-            for (int i = 0; i < stops.size(); i++) {
-                auto coordinates = stops_with_cartesian_coords.at(i);
-                auto nearby_stops = stops_in_radius(coordinates, radius_km);
-
-                auto is_not_current_stop = [i](const nanoflann::ResultItem<uint32_t>& result_item) {
-                    return result_item.first != i;
-                };
-
-                auto converted_stops = convert_flann_results(
-                        nearby_stops | std::ranges::views::filter(is_not_current_stop));
-                results.emplace_back(stops.at(i), std::move(converted_stops));
-            }
-            return results;
-        }
+        [[nodiscard]] std::vector<StopsInRadius> stops_in_radius(const double radius_km) const;
 
         /*
          * Functions required by nanoflann
