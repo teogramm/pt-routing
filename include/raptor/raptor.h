@@ -174,7 +174,7 @@ namespace raptor {
          */
         template <std::ranges::input_range R>
             requires std::is_convertible_v<std::ranges::range_value_t<R>, Stop>
-        std::optional<std::pair<std::reference_wrapper<const Stop>, std::chrono::zoned_seconds>> find_hop_on_stop(
+        std::optional<std::pair<std::ranges::range_difference_t<R>, std::chrono::zoned_seconds>> find_hop_on_stop(
                 R&& stops,
                 const int n_transfers) {
             auto has_journey_at_n_transfers = [n_transfers](const LabelContainer::value_type& label) {
@@ -187,7 +187,8 @@ namespace raptor {
             if (hop_on_stop == std::ranges::end(stops)) {
                 return std::nullopt;
             }
-            return std::make_pair(*hop_on_stop, stop_labels[*hop_on_stop].get_label(n_transfers)->arrival_time);
+            return std::make_pair(std::ranges::distance(std::ranges::begin(stops), hop_on_stop),
+                                  stop_labels[*hop_on_stop].get_label(n_transfers)->arrival_time);
         }
     };
 
@@ -210,25 +211,43 @@ namespace raptor {
 
         const Schedule& schedule;
 
+        /**
+         * Find the earliest trip which departs from the given stop after the given departure time.
+         * @param route_trips Range with trips of a route, sorted by ascending departure time from the route's origin.
+         * @param departure_time Departure time from the given stop.
+         * @param stop_index Index of the stop in the route.
+         * @return Iterator to the route_trips range, pointing to the found trip. If no trip was found, iterator
+         * pointing to route_trips.end().
+         */
+        template <std::ranges::random_access_range R>
+            requires std::is_convertible_v<std::ranges::range_value_t<R>, const Trip&> &&
+            requires(std::ranges::range_value_t<R> trip)
+            {
+                { trip.get_stop_times() } -> std::ranges::random_access_range;
+                requires std::is_convertible_v<std::ranges::range_value_t<decltype(trip.get_stop_times())>,
+                                               const StopTime&>;
+            }
+        static std::ranges::borrowed_iterator_t<R&> find_earliest_trip(
+                R&& route_trips,
+                const std::chrono::zoned_seconds& departure_time,
+                const std::ranges::range_difference_t<decltype(std::declval<Trip>().get_stop_times())> stop_index) {
+            return std::ranges::find_if(route_trips, [&departure_time](const auto& trip_departure_time) {
+                                            return trip_departure_time.get_sys_time() > departure_time.get_sys_time();
+                                        }, [&stop_index](const Trip& trip) {
+                                            return std::ranges::next(trip.get_stop_times().begin(), stop_index)->
+                                                    get_departure_time();
+                                        });
+        }
+
     public:
         explicit Raptor(const Schedule& schedule);
         void build_trip(const Stop& origin,
                         const Stop& destination,
                         const LabelManager& stop_labels, int n_rounds);
         void process_transfers(LabelManager& stop_labels, int n_round);
+        void process_route(const Route& route, size_t hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time, LabelManager& stop_labels, int
+                           n_rounds);
 
-        template <std::ranges::random_access_range R>
-            requires std::is_convertible_v<std::ranges::range_value_t<R>, Trip>
-        std::ranges::borrowed_iterator_t<R&> find_earliest_trip(R&& route_trips,
-                                                                const std::chrono::zoned_seconds& departure_time,
-                                                                const Stop& origin) {
-            return std::ranges::find_if(route_trips,
-                                        [&departure_time](const auto& trip_departure_time) {
-                                            return trip_departure_time > departure_time.get_sys_time();
-                                        }, [&origin](const Trip& trip) {
-                                            return trip.get_stop_time(origin).get_departure_time().get_sys_time();
-                                        });
-        }
 
         void route(const Stop& origin, const Stop& destination,
                    const std::chrono::zoned_time<std::chrono::seconds>& departure_time);
