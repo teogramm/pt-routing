@@ -1,15 +1,17 @@
 #ifndef RAPTOR_H
 #define RAPTOR_H
-#include <ranges>
 
-#include "just_gtfs/just_gtfs.h"
+#include <ranges>
+#include <unordered_map>
+#include <unordered_set>
+
+
 #include "schedule/Schedule.h"
 
 namespace raptor {
 
-
     struct JourneyInformation {
-        std::chrono::zoned_seconds arrival_time;
+        Time arrival_time;
         std::reference_wrapper<const Stop> boarding_stop;
         std::optional<std::reference_wrapper<const Route>> route;
     };
@@ -82,7 +84,7 @@ namespace raptor {
          * @param route Route used to travel between the stops.
          * @return Number of transfers the changed label corresponds to.
          */
-        int change_value(const std::chrono::zoned_seconds& arrival_time,
+        int change_value(const Time& arrival_time,
                          const Stop& boarding_stop, const std::optional<std::reference_wrapper<const Route>> route) {
             auto label = std::make_optional<JourneyInformation>(arrival_time, boarding_stop, route);
             change_value(label);
@@ -149,7 +151,7 @@ namespace raptor {
          * @param route Route used to travel between the stops.
          */
         void add_label(const Stop& stop,
-                       const std::chrono::zoned_seconds& arrival_time, const Stop& boarding_stop,
+                       const Time& arrival_time, const Stop& boarding_stop,
                        const std::optional<std::reference_wrapper<const Route>> route) {
             auto& stop_label = get_or_insert_label(stop);
             stop_label.change_value(arrival_time, boarding_stop, route);
@@ -165,6 +167,9 @@ namespace raptor {
             return get_label(round, stop);
         }
 
+        template <std::ranges::input_range R>
+        using IndexWithTime = std::pair<std::ranges::range_difference_t<R>, std::chrono::zoned_seconds>;
+
         /**
          * Get the first stop of the route that can be reached using at most the given number of transfers.
          * @param stops Range containing stop objects for this route in travel order.
@@ -174,7 +179,7 @@ namespace raptor {
          */
         template <std::ranges::input_range R>
             requires std::is_convertible_v<std::ranges::range_value_t<R>, Stop>
-        std::optional<std::pair<std::ranges::range_difference_t<R>, std::chrono::zoned_seconds>> find_hop_on_stop(
+        std::optional<IndexWithTime<R>> find_hop_on_stop(
                 R&& stops,
                 const int n_transfers) {
             auto has_journey_at_n_transfers = [n_transfers](const LabelContainer::value_type& label) {
@@ -199,8 +204,11 @@ namespace raptor {
         void find_routes_serving_stop();
 
         // TODO: Make types clearer
+
+        using StopWithDuration = std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>;
+
         std::unordered_map<std::reference_wrapper<const Stop>,
-                           std::vector<std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>>> transfers;
+                           std::vector<StopWithDuration>> transfers;
         void build_transfers();
         void build_same_station_transfers();
 
@@ -213,7 +221,8 @@ namespace raptor {
 
         /**
          * Find the earliest trip which departs from the given stop after the given departure time.
-         * @param route_trips Range with trips of a route, sorted by ascending departure time from the route's origin.
+         * @param route_trips Range with Trip objects of a specific route, sorted by ascending departure time from the
+         * route's origin.
          * @param departure_time Departure time from the given stop.
          * @param stop_index Index of the stop in the route.
          * @return Iterator to the route_trips range, pointing to the found trip. If no trip was found, iterator
@@ -244,9 +253,12 @@ namespace raptor {
         void build_trip(const Stop& origin,
                         const Stop& destination,
                         const LabelManager& stop_labels, int n_rounds);
-        void process_transfers(LabelManager& stop_labels, int n_round);
-        void process_route(const Route& route, size_t hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time, LabelManager& stop_labels, int
-                           n_rounds);
+        void process_transfers(LabelManager& stop_labels);
+
+        void process_route(const Route& route,
+                           std::ranges::range_difference_t<decltype(std::declval<Route>().stop_sequence())>
+                           hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time, LabelManager& stop_labels,
+                           int n_round);
 
 
         void route(const Stop& origin, const Stop& destination,

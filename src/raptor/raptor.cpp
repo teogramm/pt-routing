@@ -111,7 +111,7 @@ namespace raptor {
         }
     }
 
-    void Raptor::process_transfers(LabelManager& stop_labels, const int n_round) {
+    void Raptor::process_transfers(LabelManager& stop_labels) {
         for (auto& [transfer_origin, transfer_destinations] : transfers) {
             auto journey_to_origin = stop_labels.get_latest_label(transfer_origin);
             if (journey_to_origin.has_value()) {
@@ -132,7 +132,9 @@ namespace raptor {
         }
     }
 
-    void Raptor::process_route(const Route& route, size_t hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time,
+    void Raptor::process_route(const Route& route,
+                               std::ranges::range_difference_t<decltype(std::declval<Route>().stop_sequence())>
+                               hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time,
                                LabelManager& stop_labels, int n_round) {
         auto route_stops = route.stop_sequence();
         auto hop_on_stop = route_stops.at(hop_on_stop_idx);
@@ -205,7 +207,7 @@ namespace raptor {
                 }
             }
             // Third stage: Process transfers
-            process_transfers(stop_labels, n_round);
+            process_transfers(stop_labels);
         }
         build_trip(origin, destination, stop_labels, n_round);
     }
