@@ -145,36 +145,37 @@ namespace raptor {
             trip != route_trips.end()) {
             auto current_stoptime = std::ranges::next(trip->get_stop_times().begin(), hop_on_stop_idx);
             assert(current_stoptime != trip->get_stop_times().end());
-            auto end_guard = std::ranges::end(trip->get_stop_times());
+            auto sentinel = std::ranges::end(trip->get_stop_times());
             // Iterate over all the next stops in the trip and update the arrival times
-            while (current_stoptime != end_guard) {
-                auto& current_stop = current_stoptime->get_stop();
+            while (current_stoptime != sentinel) {
+                const auto& current_stop = current_stoptime->get_stop();
                 const auto current_arrival_time = current_stoptime->get_arrival_time();
                 const auto existing_journey = stop_labels.get_label(n_round, current_stop);
+                const auto can_improve_current_journey = !existing_journey.has_value() ||
+                        current_arrival_time.get_sys_time() < existing_journey->arrival_time.get_sys_time();
+
                 const auto previous_journey = stop_labels.get_label(n_round - 1, current_stop);
-                if (!existing_journey.has_value() ||
-                    current_arrival_time.get_sys_time() < existing_journey->arrival_time.get_sys_time()) {
+                const auto might_catch_earlier_trip = previous_journey.has_value() &&
+                        previous_journey->arrival_time.get_sys_time() < current_arrival_time.get_sys_time();
+
+                if (can_improve_current_journey) {
                     stop_labels.add_label(current_stop, current_arrival_time, hop_on_stop, route);
                 }
                 // If the optimal arrival time is before the current arrival time we might be able to catch
                 // an earlier trip at that stop.
                 // TODO: Check if this works
-                else if (
-                    previous_journey.has_value() &&
-                    previous_journey->arrival_time.get_sys_time() < current_arrival_time.get_sys_time()) {
-                    auto current_stop_index = std::ranges::distance(
-                            std::ranges::begin(trip->get_stop_times()), current_stoptime);
+                else if (might_catch_earlier_trip) {
+                    const auto current_stop_index =
+                            std::ranges::distance(std::ranges::begin(trip->get_stop_times()), current_stoptime);
                     auto earlier_trip =
-                            find_earliest_trip(route_trips, previous_journey->arrival_time,
-                                               current_stop_index);
+                            find_earliest_trip(route_trips, previous_journey->arrival_time, current_stop_index);
                     // From now on we are following a different trip
                     if (earlier_trip != trip) {
                         trip = earlier_trip;
-                        current_stoptime = std::ranges::next(
-                                trip->get_stop_times().begin(), current_stop_index);
+                        current_stoptime = std::ranges::next(trip->get_stop_times().begin(), current_stop_index);
                         hop_on_stop = current_stop;
                         assert(current_stoptime != trip->get_stop_times().end());
-                        end_guard = trip->get_stop_times().end();
+                        sentinel = trip->get_stop_times().end();
                     }
                 }
                 ++current_stoptime;
