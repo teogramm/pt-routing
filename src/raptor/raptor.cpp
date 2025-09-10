@@ -1,11 +1,10 @@
-#include "raptor/raptor.h"
-
 #include <ranges>
-
-#include "raptor/stop.h"
-
 #include <vector>
 #include <iostream>
+
+#include "raptor/raptor.h"
+#include "raptor/stop.h"
+#include "raptor/StopKDTree.h"
 
 namespace raptor {
     void Raptor::find_routes_serving_stop() {
@@ -21,8 +20,12 @@ namespace raptor {
     }
 
     void Raptor::build_transfers() {
-        /*TODO: Calculate on-foot transfers between different stops. For now calculates transfers between stops with
-        the same parent station. Also process GTFS transfers. Maybe all this should be done in the Schedule class.*/\
+        /*TODO: Process GTFS transfers. Maybe all this should be done in the Schedule class.*/
+        build_same_station_transfers();
+        build_on_foot_transfers();
+    }
+
+    void Raptor::build_same_station_transfers() {
         std::unordered_map<std::string, std::vector<std::reference_wrapper<const Stop>>> stops_per_parent_station;
         for (const auto& stop : schedule.get_stops()) {
             auto parent_station_id = std::string(stop.get_parent_stop_id());
@@ -43,11 +46,40 @@ namespace raptor {
                     std::ranges::transform(stops | std::views::filter(is_not_this_stop),
                                            std::back_inserter(transfers_with_times),
                                            [](const Stop& to_stop) {
-                                               return std::make_pair(std::cref(to_stop), std::chrono::seconds{0});
+                                               return std::make_pair(std::cref(to_stop), std::chrono::seconds{30});
                                            });
                     this->transfers.emplace(from_stop, std::move(transfers_with_times));
                 }
             }
+        }
+    }
+
+    void Raptor::build_on_foot_transfers(double max_radius_km) {
+        auto& stops = schedule.get_stops();
+        auto kd = StopKDTree(stops);
+        for (const auto& stop : stops) {
+            auto nearby_stops = kd.stops_in_radius(stop, max_radius_km);
+
+            auto& existing_transfers = transfers[stop];
+            auto no_existing_transfer = [&existing_transfers](const StopKDTree::StopWithDistance& to_stop) {
+                return std::ranges::all_of(existing_transfers,
+                                           [&to_stop](const Stop& existing_stop) {
+                                               return existing_stop != to_stop.stop;
+                                           }, &std::pair<std::reference_wrapper<const Stop>,
+                                                         std::chrono::seconds>::first);
+            };
+
+            auto new_transfers = std::vector<std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>>();
+            std::ranges::transform(nearby_stops | std::views::filter(no_existing_transfer),
+                                   std::back_inserter(new_transfers),
+                                   [](const StopKDTree::StopWithDistance& to_stop) {
+                                       // TODO: Customisable walking speed
+                                       const int transfer_time = std::round(3600 * to_stop.distance_m / 5 * 2 + 120);
+                                       return std::make_pair(std::cref(to_stop.stop),
+                                                             std::chrono::seconds{transfer_time});
+                                   });
+            existing_transfers.insert(existing_transfers.end(), std::make_move_iterator(new_transfers.begin()),
+                                      std::make_move_iterator(new_transfers.end()));
         }
     }
 
@@ -61,7 +93,7 @@ namespace raptor {
                             int n_rounds) {
         auto current_stop = std::cref(destination);
         int i = 0;
-        while (current_stop != origin && i < 10) {
+        while (current_stop != origin) {
             auto journey_to_here = stop_labels.get_label(n_rounds, current_stop);
             if (!journey_to_here.has_value()) {
                 std::cout << "No way to here found" << std::endl;
@@ -79,7 +111,7 @@ namespace raptor {
         }
     }
 
-    void Raptor::process_transfers(LabelManager& stop_labels) {
+    void Raptor::process_transfers(LabelManager& stop_labels, const int n_round) {
         for (auto& [transfer_origin, transfer_destinations] : transfers) {
             auto journey_to_origin = stop_labels.get_latest_label(transfer_origin);
             if (journey_to_origin.has_value()) {
@@ -90,9 +122,10 @@ namespace raptor {
                                                        journey_to_origin->arrival_time.get_sys_time() +
                                                        transfer_time);
                     if (!journey_to_destination.has_value() ||
-                        arrival_time_with_transfer.get_sys_time() < journey_to_destination->arrival_time.get_sys_time()) {
+                        arrival_time_with_transfer.get_sys_time() < journey_to_destination->arrival_time.
+                        get_sys_time()) {
                         stop_labels.add_label(transfer_destination, arrival_time_with_transfer,
-                                              transfer_origin.get(), std::nullopt);
+                                              transfer_origin.get(), journey_to_origin->route);
                     }
                 }
             }
@@ -111,7 +144,7 @@ namespace raptor {
             improved = false;
             // First stage: set t_k = t_k-1
             stop_labels.new_round();
-            // Traverse all routes
+            // Second stage: Traverse all routes
             for (auto&& route : schedule.get_routes()) {
                 // Find the earliest stop from this route that we can hop on
                 auto route_stops = route.stop_sequence();
@@ -122,14 +155,12 @@ namespace raptor {
                     // Find the earliest trip of the route that we can hop on from this stop
                     const auto& route_trips = route.get_trips();
                     // TODO: Check with upper_bound
-                    if (auto earliest_trip = find_earliest_trip(route_trips, hop_on_time, hop_on_stop);
-                        earliest_trip != route_trips.end()) {
-                        auto& trip = *earliest_trip;
-                        auto& trip_stop_times = trip.get_stop_times();
-                        auto current_stoptime = std::ranges::find(trip_stop_times,
-                            hop_on_stop, &StopTime::get_stop);
-                        assert(current_stoptime != trip.get_stop_times().end());
-                        auto end_guard = trip_stop_times.end();
+                    if (auto trip = find_earliest_trip(route_trips, hop_on_time, hop_on_stop);
+                        trip != route_trips.end()) {
+                        auto current_stoptime = std::ranges::find(trip->get_stop_times(),
+                                                                  hop_on_stop, &StopTime::get_stop);
+                        assert(current_stoptime != trip->get_stop_times().end());
+                        auto end_guard = trip->get_stop_times().end();
                         // Iterate over all the next stops in the trip and update the arrival times
                         while (current_stoptime != end_guard) {
                             auto& current_stop = current_stoptime->get_stop();
@@ -148,16 +179,17 @@ namespace raptor {
                                 previous_journey.has_value() &&
                                 previous_journey->arrival_time.get_sys_time() < current_arrival_time.get_sys_time()) {
                                 auto earlier_trip =
-                                        find_earliest_trip(route_trips, existing_journey->arrival_time, current_stop);
+                                        find_earliest_trip(route_trips, previous_journey->arrival_time, current_stop);
                                 // From now on we are following a different trip
-                                if (earlier_trip != earliest_trip) {
-                                    earliest_trip = earlier_trip;
-                                    current_stoptime = std::ranges::find(earliest_trip->get_stop_times(), current_stop,
-                                                                         &StopTime::get_stop);
+                                if (earlier_trip != trip) {
+                                    // Use stop index to solve infinite loop in circular routes which traverse the
+                                    // same stop twice.
+                                    auto stop_index = std::distance(trip->get_stop_times().begin(), current_stoptime);
+                                    trip = earlier_trip;
+                                    current_stoptime = trip->get_stop_times().begin() + stop_index;
                                     hop_on_stop = current_stop;
-                                    assert(current_stoptime != earliest_trip->get_stop_times().end());
-                                    end_guard = earliest_trip->get_stop_times().end();
-                                    continue;
+                                    assert(current_stoptime != trip->get_stop_times().end());
+                                    end_guard = trip->get_stop_times().end();
                                 }
                             }
                             ++current_stoptime;
@@ -165,8 +197,8 @@ namespace raptor {
                     }
                 }
             }
-            // Process transfers
-            process_transfers(stop_labels);
+            // Third stage: Process transfers
+            process_transfers(stop_labels, n_round);
         }
         build_trip(origin, destination, stop_labels, n_round);
     }

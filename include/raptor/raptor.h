@@ -59,7 +59,7 @@ namespace raptor {
             if (labels.empty()) {
                 return std::nullopt;
             }
-            if (n_transfers < labels.size() && n_transfers > 0) {
+            if (n_transfers < labels.size() && n_transfers >= 0) {
                 return labels.at(n_transfers);
             }
             throw std::out_of_range("");
@@ -180,15 +180,14 @@ namespace raptor {
             auto has_journey_at_n_transfers = [n_transfers](const LabelContainer::value_type& label) {
                 return label.second.get_label(n_transfers).has_value();
             };
+            // TODO: Make this a set and construct it at the start of the round. Also, performance comparison.
             auto stops_with_journeys = stop_labels | std::views::filter(has_journey_at_n_transfers);
-            auto hop_on_stop = std::ranges::find_first_of(stops_with_journeys, stops,
-                                                          {}, [](const auto& pair) {
-                                                              return pair.first;
-                                                          });
-            if (hop_on_stop == stops_with_journeys.end()) {
+            auto hop_on_stop = std::ranges::find_first_of(stops, stops_with_journeys,
+                                                          {}, {}, &LabelContainer::value_type::first);
+            if (hop_on_stop == std::ranges::end(stops)) {
                 return std::nullopt;
             }
-            return std::make_pair(hop_on_stop->first, hop_on_stop->second.get_label(n_transfers)->arrival_time);
+            return std::make_pair(*hop_on_stop, stop_labels[*hop_on_stop].get_label(n_transfers)->arrival_time);
         }
     };
 
@@ -198,9 +197,16 @@ namespace raptor {
         routes_serving_stop;
         void find_routes_serving_stop();
 
+        // TODO: Make types clearer
         std::unordered_map<std::reference_wrapper<const Stop>,
                            std::vector<std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>>> transfers;
         void build_transfers();
+        void build_same_station_transfers();
+
+        /**
+         * Builds on-foot transfers between stops that do not have an existing transfer
+         */
+        void build_on_foot_transfers(double max_radius_km = 1);
 
         const Schedule& schedule;
 
@@ -209,7 +215,7 @@ namespace raptor {
         void build_trip(const Stop& origin,
                         const Stop& destination,
                         const LabelManager& stop_labels, int n_rounds);
-        void process_transfers(LabelManager& stop_labels);
+        void process_transfers(LabelManager& stop_labels, int n_round);
 
         template <std::ranges::random_access_range R>
             requires std::is_convertible_v<std::ranges::range_value_t<R>, Trip>
