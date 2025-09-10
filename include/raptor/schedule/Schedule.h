@@ -14,11 +14,12 @@ namespace raptor {
     class Stop {
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
-             std::string parent_stop_id) :
+             std::string parent_stop_id, std::string platform_code) :
             name(std::move(name)),
             gtfs_id(std::move(gtfs_id)),
             parent_stop_id(std::move(parent_stop_id)),
-            coordinates({latitude, longitude}) {
+            coordinates({latitude, longitude}),
+            platform_code(platform_code) {
         }
 
         [[nodiscard]] std::string_view get_name() const {
@@ -37,6 +38,10 @@ namespace raptor {
             return parent_stop_id;
         }
 
+        [[nodiscard]] std::string_view get_platform_code() const {
+            return platform_code;
+        }
+
         friend bool operator==(const Stop& lhs, const Stop& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
         friend bool operator!=(const Stop& lhs, const Stop& rhs) { return !(lhs == rhs); }
 
@@ -44,6 +49,7 @@ namespace raptor {
         std::string name;
         std::string gtfs_id;
         std::string parent_stop_id;
+        std::string platform_code;
 
         struct {
             double latitude;

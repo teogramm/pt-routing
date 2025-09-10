@@ -76,8 +76,8 @@ namespace raptor::gtfs {
         std::ranges::transform(gtfs_stops | std::views::filter(is_platform),
                                std::back_inserter(stops), [](const ::gtfs::Stop& gtfs_stop) {
                                    return Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
-                                               gtfs_stop.stop_lat,
-                                               gtfs_stop.stop_lon, gtfs_stop.parent_station};
+                                               gtfs_stop.stop_lat, gtfs_stop.stop_lon,
+                                               gtfs_stop.parent_station, gtfs_stop.platform_code};
                                });
         return stops;
     }
