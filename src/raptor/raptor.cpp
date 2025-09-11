@@ -104,12 +104,14 @@ namespace raptor {
             if (journey_to_here->route_and_trip_index.has_value()) {
                 auto route = journey_to_here->route_and_trip_index.value().first;
                 auto& trip = route.get().get_trips().at(journey_to_here->route_and_trip_index.value().second);
-                std::cout << "Take " <<  route.get().get_short_name();
-            }else {
-                std:: cout << "Walk";
+                std::cout << "Take " << route.get().get_short_name();
+            }
+            else {
+                std::cout << "Walk";
             }
 
-            std::cout << " from " << boarding_stop.get().get_name() << " platform " << boarding_stop.get().get_platform_code() <<
+            std::cout << " from " << boarding_stop.get().get_name() << " platform " << boarding_stop.get().
+                    get_platform_code() <<
                     " to " << current_stop.get().get_name() << " platform " << current_stop.get().get_platform_code();
 
             std::cout << std::endl;
@@ -140,11 +142,10 @@ namespace raptor {
         }
     }
 
-    void Raptor::process_route(const Route& route,
-                               std::ranges::range_difference_t<decltype(std::declval<Route>().stop_sequence())>
-                               hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time,
-                               LabelManager& stop_labels, int n_round) {
+    void Raptor::process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status) {
         auto route_stops = route.stop_sequence();
+        auto& stop_labels = status.label_manager;
+        auto n_round = status.n_round;
         auto hop_on_stop = route_stops.at(hop_on_stop_idx);
         // Find the earliest trip of the route that we can hop on from this stop
         const auto& route_trips = route.get_trips();
@@ -195,14 +196,15 @@ namespace raptor {
 
 
     void Raptor::route(const Stop& origin, const Stop& destination,
-                       const std::chrono::zoned_seconds& departure_time) {
-        int n_round = 0;
-        auto stop_labels = LabelManager();
+                       const Time& departure_time) {
+        auto status = RaptorStatus{};
+        auto& stop_labels = status.label_manager;
+        status.n_round = 0;
         // TODO: Remove the need for dummy route
         stop_labels.add_label(origin, departure_time, std::nullopt, std::nullopt);
         bool improved = true;
         for (int i = 0; i < 5; i++) {
-            ++n_round;
+            ++status.n_round;
             improved = false;
             // First stage: set t_k = t_k-1
             stop_labels.new_round();
@@ -211,15 +213,15 @@ namespace raptor {
                 // Find the earliest stop from this route that we can hop on
                 auto route_stops = route.stop_sequence();
                 auto hop_on_journey = stop_labels.find_hop_on_stop(
-                        route_stops, n_round - 1);
+                        route_stops, status.n_round - 1);
                 if (hop_on_journey.has_value()) {
                     auto [hop_on_stop_index, hop_on_time] = hop_on_journey.value();
-                    process_route(route, hop_on_stop_index, hop_on_time, stop_labels, n_round);
+                    process_route(route, hop_on_stop_index, hop_on_time, status);
                 }
             }
             // Third stage: Process transfers
             process_transfers(stop_labels);
         }
-        build_trip(origin, destination, stop_labels, n_round);
+        build_trip(origin, destination, stop_labels, status.n_round);
     }
 } // namespace raptor

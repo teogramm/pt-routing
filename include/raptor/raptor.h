@@ -10,6 +10,9 @@
 
 namespace raptor {
 
+    using StopIndex = std::ranges::range_difference_t<decltype(std::declval<Route>().stop_sequence())>;
+    using TripIndex = std::ranges::range_difference_t<decltype(std::declval<Route>().get_trips())>;
+    using StopTimeIndex = std::ranges::range_difference_t<decltype(std::declval<Trip>().get_stop_times())>;
 
     /**
      * Contains information about reaching a stop. The algorithm supports two types of reaching a stop: either on
@@ -20,7 +23,7 @@ namespace raptor {
     struct JourneyInformation {
         Time arrival_time;
         std::optional<std::reference_wrapper<const Stop>> boarding_stop;
-        std::optional<std::pair<std::reference_wrapper<const Route>, size_t>> route_and_trip_index;
+        std::optional<std::pair<std::reference_wrapper<const Route>, TripIndex>> route_and_trip_index;
     };
 
     /**
@@ -162,7 +165,7 @@ namespace raptor {
         void add_label(const Stop& stop,
                        const Time& arrival_time,
                        const std::optional<std::reference_wrapper<const Stop>> boarding_stop,
-                       const std::optional<std::pair<std::reference_wrapper<const Route>, size_t>>
+                       const std::optional<std::pair<std::reference_wrapper<const Route>, TripIndex>>
                        route_with_trip_index) {
             auto& stop_label = get_or_insert_label(stop);
             stop_label.change_value(arrival_time, boarding_stop, route_with_trip_index);
@@ -179,7 +182,7 @@ namespace raptor {
         }
 
         template <std::ranges::input_range R>
-        using IndexWithTime = std::pair<std::ranges::range_difference_t<R>, std::chrono::zoned_seconds>;
+        using IndexWithTime = std::pair<std::ranges::range_difference_t<R>, Time>;
 
         /**
          * Get the first stop of the route that can be reached using at most the given number of transfers.
@@ -209,7 +212,6 @@ namespace raptor {
     };
 
     class Raptor {
-        // TODO: These two are not needed
         std::unordered_map<std::reference_wrapper<const Stop>, std::unordered_set<std::reference_wrapper<const Route>>>
         routes_serving_stop;
         void find_routes_serving_stop();
@@ -227,6 +229,13 @@ namespace raptor {
         void build_on_foot_transfers(double max_radius_km = 1);
 
         const Schedule& schedule;
+
+        struct RaptorStatus {
+            LabelManager label_manager;
+            std::unordered_map<std::reference_wrapper<const Stop>, Time> earliest_arrival_time;
+            std::unordered_set<std::reference_wrapper<const Stop>> improved_stops;
+            int n_round;
+        };
 
         /**
          * Find the earliest trip which departs from the given stop after the given departure time.
@@ -248,7 +257,7 @@ namespace raptor {
         static std::ranges::borrowed_iterator_t<R&> find_earliest_trip(
                 R&& route_trips,
                 const std::chrono::zoned_seconds& departure_time,
-                const std::ranges::range_difference_t<decltype(std::declval<Trip>().get_stop_times())> stop_index) {
+                const StopIndex stop_index) {
             return std::ranges::find_if(route_trips, [&departure_time](const auto& trip_departure_time) {
                                             return trip_departure_time.get_sys_time() > departure_time.get_sys_time();
                                         }, [&stop_index](const Trip& trip) {
@@ -257,21 +266,23 @@ namespace raptor {
                                         });
         }
 
-    public:
-        explicit Raptor(const Schedule& schedule);
         void build_trip(const Stop& origin,
                         const Stop& destination,
                         const LabelManager& stop_labels, int n_rounds);
         void process_transfers(LabelManager& stop_labels);
 
-        void process_route(const Route& route,
-                           std::ranges::range_difference_t<decltype(std::declval<Route>().stop_sequence())>
-                           hop_on_stop_idx, std::chrono::zoned_seconds hop_on_time, LabelManager& stop_labels,
-                           int n_round);
+        void process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status);
+
+        // std::vector<std::pair<std::reference_wrapper<const Route>,
+        //                       StopIndex>
+        // >
+
+    public:
+        explicit Raptor(const Schedule& schedule);
 
 
         void route(const Stop& origin, const Stop& destination,
-                   const std::chrono::zoned_time<std::chrono::seconds>& departure_time);
+                   const Time& departure_time);
     };
 }
 
