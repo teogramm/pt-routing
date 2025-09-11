@@ -212,9 +212,21 @@ namespace raptor {
     };
 
     class Raptor {
-        std::unordered_map<std::reference_wrapper<const Stop>, std::unordered_set<std::reference_wrapper<const Route>>>
+
+        // struct RouteWithStopIndex {
+        //     std::reference_wrapper<const Route> route;
+        //     StopIndex stop_idx;
+        // };
+
+        // Make the reference wrapper const so it can be used to directly etract pairs from the unordered_map
+        using RouteWithStopIndex = std::pair<const std::reference_wrapper<const Route>, StopIndex>;
+
+        std::unordered_map<std::reference_wrapper<const Stop>, std::vector<RouteWithStopIndex>>
         routes_serving_stop;
-        void find_routes_serving_stop();
+        /**
+         * Calculates which routes serve every stop. Includes only stops which are served by some route.
+         */
+        void build_routes_serving_stop();
 
         using StopWithDuration = std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>;
 
@@ -269,13 +281,37 @@ namespace raptor {
         void build_trip(const Stop& origin,
                         const Stop& destination,
                         const LabelManager& stop_labels, int n_rounds);
-        void process_transfers(LabelManager& stop_labels);
+        void process_transfers(RaptorStatus& status);
 
-        void process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status);
+        void process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status, const Stop& destination);
 
-        // std::vector<std::pair<std::reference_wrapper<const Route>,
-        //                       StopIndex>
-        // >
+
+        template <std::ranges::input_range R>
+            requires std::is_convertible_v<std::ranges::range_value_t<R>, const Stop>
+        std::vector<RouteWithStopIndex>
+        find_routes_to_examine(R&& improved_stops) {
+            auto route_to_earliest_stop = std::unordered_map<
+                std::remove_const_t<RouteWithStopIndex::first_type>, RouteWithStopIndex::second_type>();
+            for (const Stop& stop : improved_stops) {
+                // It is possible that a stop is not served by any route but can be accessed only on foot.
+                // As such, use
+                auto& routes_for_stop = routes_serving_stop[stop];
+                for (auto& [route, stop_index] : routes_for_stop) {
+                    auto current_stop_index = route_to_earliest_stop.find(route);
+                    auto new_route = current_stop_index == route_to_earliest_stop.end();
+                    auto earlier_stop = !new_route && current_stop_index->second > stop_index;
+                    if (new_route || earlier_stop) {
+                        route_to_earliest_stop.insert_or_assign(route, stop_index);
+                    }
+                }
+            }
+            return {std::make_move_iterator(route_to_earliest_stop.begin()),
+                    std::make_move_iterator(route_to_earliest_stop.end())};
+        }
+
+        static bool can_improve_current_journey_to_stop(const Time& new_arrival_time, const Stop& current_stop,
+                                                         const Stop& destination, const RaptorStatus& status);
+
 
     public:
         explicit Raptor(const Schedule& schedule);

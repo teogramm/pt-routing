@@ -18,8 +18,8 @@ namespace raptor {
             name(std::move(name)),
             gtfs_id(std::move(gtfs_id)),
             parent_stop_id(std::move(parent_stop_id)),
-            coordinates({latitude, longitude}),
-            platform_code(platform_code) {
+            platform_code(std::move(platform_code)),
+            coordinates({latitude, longitude}) {
         }
 
         [[nodiscard]] std::string_view get_name() const {

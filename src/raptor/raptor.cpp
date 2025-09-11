@@ -7,14 +7,16 @@
 #include "raptor/StopKDTree.h"
 
 namespace raptor {
-    void Raptor::find_routes_serving_stop() {
+    void Raptor::build_routes_serving_stop() {
         // TODO: See if this can be done with ranges
         for (const auto& route : schedule.get_routes()) {
             // Every trip of a route shares the same stops, so just take the first trip
             auto& first_trip = route.get_trips().front();
+            auto index = 0;
             for (const auto& stop_time : first_trip.get_stop_times()) {
                 const auto& stop = stop_time.get_stop();
-                routes_serving_stop[stop].emplace(route);
+                routes_serving_stop[stop].emplace_back(route, index);
+                index++;
             }
         }
     }
@@ -46,7 +48,7 @@ namespace raptor {
                     std::ranges::transform(stops | std::views::filter(is_not_this_stop),
                                            std::back_inserter(transfers_with_times),
                                            [](const Stop& to_stop) {
-                                               return std::make_pair(std::cref(to_stop), std::chrono::seconds{30});
+                                               return std::make_pair(std::cref(to_stop), std::chrono::seconds{60});
                                            });
                     this->transfers.emplace(from_stop, std::move(transfers_with_times));
                 }
@@ -86,6 +88,7 @@ namespace raptor {
     Raptor::Raptor(const Schedule& schedule) :
         schedule(schedule) {
         build_transfers();
+        build_routes_serving_stop();
     }
 
     void Raptor::build_trip(const Stop& origin, const Stop& destination,
@@ -112,7 +115,8 @@ namespace raptor {
 
             std::cout << " from " << boarding_stop.get().get_name() << " platform " << boarding_stop.get().
                     get_platform_code() <<
-                    " to " << current_stop.get().get_name() << " platform " << current_stop.get().get_platform_code();
+                    " to " << current_stop.get().get_name() << " platform " << current_stop.get().get_platform_code()
+                    << " " << std::format("{:%H-%M}", journey_to_here->arrival_time.get_sys_time());;
 
             std::cout << std::endl;
 
@@ -121,32 +125,46 @@ namespace raptor {
         }
     }
 
-    void Raptor::process_transfers(LabelManager& stop_labels) {
-        for (auto& [transfer_origin, transfer_destinations] : transfers) {
-            auto journey_to_origin = stop_labels.get_latest_label(transfer_origin);
-            if (journey_to_origin.has_value()) {
-                for (auto& [transfer_destination, transfer_time] : transfer_destinations) {
-                    auto journey_to_destination = stop_labels.get_latest_label(transfer_destination);
-                    auto arrival_time_with_transfer =
-                            std::chrono::zoned_seconds(journey_to_origin->arrival_time.get_time_zone(),
-                                                       journey_to_origin->arrival_time.get_sys_time() +
-                                                       transfer_time);
-                    if (!journey_to_destination.has_value() ||
-                        arrival_time_with_transfer.get_sys_time() < journey_to_destination->arrival_time.
-                        get_sys_time()) {
-                        stop_labels.add_label(transfer_destination, arrival_time_with_transfer,
-                                              transfer_origin.get(), std::nullopt);
-                    }
+    void Raptor::process_transfers(RaptorStatus& status) {
+        auto& stop_labels = status.label_manager;
+        for (auto& origin_stop : status.improved_stops) {
+            auto journey_to_origin = stop_labels.get_latest_label(origin_stop);
+            for (auto& [destination_stop, transfer_time] : transfers[origin_stop]) {
+                auto journey_to_destination = stop_labels.get_latest_label(destination_stop);
+                auto arrival_time_with_transfer =
+                        std::chrono::zoned_seconds(journey_to_origin->arrival_time.get_time_zone(),
+                                                   journey_to_origin->arrival_time.get_sys_time() +
+                                                   transfer_time);
+                if (!journey_to_destination.has_value() ||
+                    arrival_time_with_transfer.get_sys_time() < journey_to_destination->arrival_time.
+                    get_sys_time()) {
+                    stop_labels.add_label(destination_stop, arrival_time_with_transfer,
+                                          origin_stop.get(), std::nullopt);
+                    status.improved_stops.insert(destination_stop);
+                    status.earliest_arrival_time[destination_stop] = arrival_time_with_transfer;
                 }
             }
         }
     }
 
-    void Raptor::process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status) {
-        auto route_stops = route.stop_sequence();
+    bool Raptor::can_improve_current_journey_to_stop(const Time& new_arrival_time, const Stop& current_stop,
+                                                     const Stop& destination, const RaptorStatus& status) {
+        auto arrival_time_to_current_stop = status.earliest_arrival_time.find(current_stop);
+        if (arrival_time_to_current_stop == status.earliest_arrival_time.end())
+            return true;
+        auto arrival_time_to_destination = status.earliest_arrival_time.find(destination);
+        if (arrival_time_to_destination == status.earliest_arrival_time.end()) {
+            return new_arrival_time.get_sys_time() < arrival_time_to_current_stop->second.get_sys_time();
+        }
+        return new_arrival_time.get_sys_time() < std::min(arrival_time_to_current_stop->second.get_sys_time(),
+                                                          arrival_time_to_destination->second.get_sys_time());
+
+    }
+
+    void Raptor::process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status,
+                               const Stop& destination) {
         auto& stop_labels = status.label_manager;
-        auto n_round = status.n_round;
-        auto hop_on_stop = route_stops.at(hop_on_stop_idx);
+        auto hop_on_stop = route.stop_sequence().at(hop_on_stop_idx);
         // Find the earliest trip of the route that we can hop on from this stop
         const auto& route_trips = route.get_trips();
         // TODO: Check with upper_bound
@@ -159,18 +177,18 @@ namespace raptor {
             while (current_stoptime != sentinel) {
                 const auto& current_stop = current_stoptime->get_stop();
                 const auto current_arrival_time = current_stoptime->get_arrival_time();
-                const auto existing_journey = stop_labels.get_label(n_round, current_stop);
-                const auto can_improve_current_journey = !existing_journey.has_value() ||
-                        current_arrival_time.get_sys_time() < existing_journey->arrival_time.get_sys_time();
 
-                const auto previous_journey = stop_labels.get_label(n_round - 1, current_stop);
+                const auto previous_journey = stop_labels.get_label(status.n_round - 1, current_stop);
                 const auto might_catch_earlier_trip = previous_journey.has_value() &&
-                        previous_journey->arrival_time.get_sys_time() < current_arrival_time.get_sys_time();
+                        previous_journey->arrival_time.get_sys_time() < current_stoptime->get_departure_time().
+                        get_sys_time();
 
-                if (can_improve_current_journey) {
+                if (can_improve_current_journey_to_stop(current_arrival_time, current_stop, destination, status)) {
                     auto trip_index = std::distance(route_trips.begin(), trip);
                     stop_labels.add_label(current_stop, current_arrival_time, hop_on_stop,
                                           std::make_pair(std::cref(route), trip_index));
+                    status.earliest_arrival_time[current_stop] = current_arrival_time;
+                    status.improved_stops.insert(std::cref(current_stop));
                 }
                 // If the optimal arrival time is before the current arrival time we might be able to catch
                 // an earlier trip at that stop.
@@ -202,25 +220,22 @@ namespace raptor {
         status.n_round = 0;
         // TODO: Remove the need for dummy route
         stop_labels.add_label(origin, departure_time, std::nullopt, std::nullopt);
-        bool improved = true;
-        for (int i = 0; i < 5; i++) {
+        status.earliest_arrival_time[origin] = departure_time;
+        status.improved_stops.insert(origin);
+        while (!status.improved_stops.empty()) {
             ++status.n_round;
-            improved = false;
             // First stage: set t_k = t_k-1
             stop_labels.new_round();
             // Second stage: Traverse all routes
-            for (auto&& route : schedule.get_routes()) {
-                // Find the earliest stop from this route that we can hop on
-                auto route_stops = route.stop_sequence();
-                auto hop_on_journey = stop_labels.find_hop_on_stop(
-                        route_stops, status.n_round - 1);
-                if (hop_on_journey.has_value()) {
-                    auto [hop_on_stop_index, hop_on_time] = hop_on_journey.value();
-                    process_route(route, hop_on_stop_index, hop_on_time, status);
-                }
+            auto current_round_routes = find_routes_to_examine(status.improved_stops);
+            status.improved_stops.clear();
+            for (auto& [route, stop_index] : current_round_routes) {
+                auto hop_on_stop = route.get().stop_sequence().at(stop_index);
+                auto arrival_time = status.earliest_arrival_time.at(hop_on_stop);
+                process_route(route, stop_index, arrival_time, status, destination);
             }
             // Third stage: Process transfers
-            process_transfers(stop_labels);
+            process_transfers(status);
         }
         build_trip(origin, destination, stop_labels, status.n_round);
     }
