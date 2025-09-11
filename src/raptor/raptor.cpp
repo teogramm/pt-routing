@@ -92,11 +92,10 @@ namespace raptor {
     }
 
     void Raptor::build_trip(const Stop& origin, const Stop& destination,
-                            const LabelManager& stop_labels,
-                            int n_rounds) {
+                            const LabelManager& stop_labels) {
         auto current_stop = std::cref(destination);
         int i = 0;
-        auto journey_to_here = stop_labels.get_label(n_rounds, current_stop);
+        auto journey_to_here = stop_labels.get_latest_label(current_stop);
         if (!journey_to_here.has_value()) {
             std::cout << "No way to here found" << std::endl;
             return;
@@ -121,7 +120,7 @@ namespace raptor {
             std::cout << std::endl;
 
             current_stop = journey_to_here->boarding_stop.value();
-            journey_to_here = stop_labels.get_label(n_rounds, current_stop);
+            journey_to_here = stop_labels.get_latest_label(current_stop);
         }
     }
 
@@ -178,7 +177,7 @@ namespace raptor {
                 const auto& current_stop = current_stoptime->get_stop();
                 const auto current_arrival_time = current_stoptime->get_arrival_time();
 
-                const auto previous_journey = stop_labels.get_label(status.n_round - 1, current_stop);
+                const auto previous_journey = stop_labels.get_previous_label(current_stop);
                 const auto might_catch_earlier_trip = previous_journey.has_value() &&
                         previous_journey->arrival_time.get_sys_time() < current_stoptime->get_departure_time().
                         get_sys_time();
@@ -237,6 +236,6 @@ namespace raptor {
             // Third stage: Process transfers
             process_transfers(status);
         }
-        build_trip(origin, destination, stop_labels, status.n_round);
+        build_trip(origin, destination, stop_labels);
     }
 } // namespace raptor
