@@ -3,8 +3,6 @@ project(pt_routing)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(Boost REQUIRED COMPONENTS graph)
-
 include(FetchContent)
 FetchContent_Declare(
         just_gtfs
@@ -12,7 +10,7 @@ FetchContent_Declare(
         EXCLUDE_FROM_ALL
 )
 
-set(NANOFLANN_BUILD_TESTS OFF)
+set(NANOFLANN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         nanoflann
         GIT_REPOSITORY https://github.com/jlblancoc/nanoflann
@@ -22,8 +20,8 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(just_gtfs nanoflann)
 
-set(SOURCES src/raptor/raptor.cpp src/raptor/schedule/Schedule.cpp
-        src/raptor/schedule/gtfs.cpp
+set(SOURCES src/raptor/raptor.cpp src/schedule/Schedule.cpp
+        src/schedule/gtfs.cpp
         src/raptor/StopKDTree.cpp)
 
 option(PT_ROUTING_BUILD_TESTS "Build unit tests" ON)
