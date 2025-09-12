@@ -26,11 +26,27 @@ set(SOURCES src/raptor/raptor.cpp src/raptor/schedule/Schedule.cpp
         src/raptor/schedule/gtfs.cpp
         src/raptor/StopKDTree.cpp)
 
-add_executable(pt_routing main.cpp ${SOURCES})
-target_link_libraries(pt_routing PRIVATE just_gtfs nanoflann::nanoflann)
-target_include_directories(pt_routing PRIVATE include)
+option(PT_ROUTING_BUILD_TESTS "Build unit tests" ON)
+include(FetchContent)
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+FetchContent_MakeAvailable(googletest)
+if(PT_ROUTING_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif ()
+
+add_library(pt_routing_base INTERFACE ${SOURCES})
+target_include_directories(pt_routing_base INTERFACE include)
+target_link_libraries(pt_routing_base INTERFACE just_gtfs nanoflann::nanoflann)
+
+add_executable(pt_routing main.cpp)
+target_link_libraries(pt_routing PRIVATE pt_routing_base)
 target_compile_features(pt_routing PUBLIC cxx_std_20)
 
-add_executable(test test.cpp ${SOURCES})
-target_link_libraries(test PRIVATE just_gtfs ${Boost_LIBRARIES} nanoflann::nanoflann)
-target_include_directories(test PRIVATE include ${Boost_INCLUDE_DIRS})
+if (EXISTS "test.cpp")
+    add_executable(test test.cpp ${SOURCES})
+    target_link_libraries(test PRIVATE pt_routing_base)
+endif ()
