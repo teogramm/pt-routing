@@ -125,44 +125,20 @@ namespace raptor {
     }
 
     void Raptor::process_transfers(RaptorStatus& status) {
-        auto& stop_labels = status.label_manager;
-        for (auto& origin_stop : status.improved_stops) {
-            auto journey_to_origin = stop_labels.get_latest_label(origin_stop);
+        for (auto& origin_stop : status.get_improved_stops()) {
+            auto arrival_time_to_origin = status.current_arrival_time_to_stop(origin_stop);
             for (auto& [destination_stop, transfer_time] : transfers[origin_stop]) {
-                auto journey_to_destination = stop_labels.get_latest_label(destination_stop);
                 auto arrival_time_with_transfer =
-                        std::chrono::zoned_seconds(journey_to_origin->arrival_time.get_time_zone(),
-                                                   journey_to_origin->arrival_time.get_sys_time() +
+                        std::chrono::zoned_seconds(arrival_time_to_origin.get_time_zone(),
+                                                   arrival_time_to_origin.get_sys_time() +
                                                    transfer_time);
-                if (!journey_to_destination.has_value() ||
-                    arrival_time_with_transfer.get_sys_time() < journey_to_destination->arrival_time.
-                    get_sys_time()) {
-                    stop_labels.add_label(destination_stop, arrival_time_with_transfer,
-                                          origin_stop.get(), std::nullopt);
-                    status.improved_stops.insert(destination_stop);
-                    status.earliest_arrival_time[destination_stop] = arrival_time_with_transfer;
-                }
+                status.try_improve_stop(destination_stop, arrival_time_with_transfer, origin_stop, std::nullopt);
             }
         }
     }
 
-    bool Raptor::can_improve_current_journey_to_stop(const Time& new_arrival_time, const Stop& current_stop,
-                                                     const Stop& destination, const RaptorStatus& status) {
-        auto arrival_time_to_current_stop = status.earliest_arrival_time.find(current_stop);
-        if (arrival_time_to_current_stop == status.earliest_arrival_time.end())
-            return true;
-        auto arrival_time_to_destination = status.earliest_arrival_time.find(destination);
-        if (arrival_time_to_destination == status.earliest_arrival_time.end()) {
-            return new_arrival_time.get_sys_time() < arrival_time_to_current_stop->second.get_sys_time();
-        }
-        return new_arrival_time.get_sys_time() < std::min(arrival_time_to_current_stop->second.get_sys_time(),
-                                                          arrival_time_to_destination->second.get_sys_time());
-
-    }
-
     void Raptor::process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status,
                                const Stop& destination) {
-        auto& stop_labels = status.label_manager;
         auto hop_on_stop = route.stop_sequence().at(hop_on_stop_idx);
         // Find the earliest trip of the route that we can hop on from this stop
         const auto& route_trips = route.get_trips();
@@ -170,36 +146,33 @@ namespace raptor {
         if (auto trip = find_earliest_trip(route_trips, hop_on_time, hop_on_stop_idx);
             trip != route_trips.end()) {
             auto current_stoptime = std::ranges::next(trip->get_stop_times().begin(), hop_on_stop_idx);
+            auto trip_index = std::distance(route_trips.begin(), trip);
             assert(current_stoptime != trip->get_stop_times().end());
             auto sentinel = std::ranges::end(trip->get_stop_times());
             // Iterate over all the next stops in the trip and update the arrival times
             while (current_stoptime != sentinel) {
                 const auto& current_stop = current_stoptime->get_stop();
                 const auto current_arrival_time = current_stoptime->get_arrival_time();
+                const auto current_departure_time = current_stoptime->get_departure_time();
 
-                const auto previous_journey = stop_labels.get_previous_label(current_stop);
-                const auto might_catch_earlier_trip = previous_journey.has_value() &&
-                        previous_journey->arrival_time.get_sys_time() < current_stoptime->get_departure_time().
-                        get_sys_time();
-
-                if (can_improve_current_journey_to_stop(current_arrival_time, current_stop, destination, status)) {
-                    auto trip_index = std::distance(route_trips.begin(), trip);
-                    stop_labels.add_label(current_stop, current_arrival_time, hop_on_stop,
-                                          std::make_pair(std::cref(route), trip_index));
-                    status.earliest_arrival_time[current_stop] = current_arrival_time;
-                    status.improved_stops.insert(std::cref(current_stop));
-                }
+                // Try to improve the current journey
+                auto current_journey_improved = status.try_improve_stop(current_stop, current_arrival_time,
+                                                                        hop_on_stop,
+                                                                        std::make_pair(std::cref(route), trip_index));
                 // If the optimal arrival time is before the current arrival time we might be able to catch
                 // an earlier trip at that stop.
                 // TODO: Check if this works
-                else if (might_catch_earlier_trip) {
+                if (!current_journey_improved && status.
+                    might_catch_earlier_trip(current_stop, current_departure_time)) {
                     const auto current_stop_index =
                             std::ranges::distance(std::ranges::begin(trip->get_stop_times()), current_stoptime);
                     auto earlier_trip =
-                            find_earliest_trip(route_trips, previous_journey->arrival_time, current_stop_index);
+                            find_earliest_trip(route_trips, status.previous_arrival_time_to_stop(current_stop),
+                                               current_stop_index);
                     // From now on we are following a different trip
                     if (earlier_trip != trip) {
                         trip = earlier_trip;
+                        trip_index = std::distance(earlier_trip, trip);
                         current_stoptime = std::ranges::next(trip->get_stop_times().begin(), current_stop_index);
                         hop_on_stop = current_stop;
                         assert(current_stoptime != trip->get_stop_times().end());
@@ -214,28 +187,20 @@ namespace raptor {
 
     std::vector<Movement> Raptor::route(const Stop& origin, const Stop& destination,
                                         const Time& departure_time) {
-        auto status = RaptorStatus{};
-        auto& stop_labels = status.label_manager;
-        status.n_round = 0;
-        // TODO: Remove the need for dummy route
-        stop_labels.add_label(origin, departure_time, std::nullopt, std::nullopt);
-        status.earliest_arrival_time[origin] = departure_time;
-        status.improved_stops.insert(origin);
-        while (!status.improved_stops.empty()) {
-            ++status.n_round;
+        auto status = RaptorStatus{origin, destination, departure_time};
+        while (status.have_stops_to_improve()) {
             // First stage: set t_k = t_k-1
-            stop_labels.new_round();
+            status.new_round();
             // Second stage: Traverse all routes
-            auto current_round_routes = find_routes_to_examine(status.improved_stops);
-            status.improved_stops.clear();
+            auto current_round_routes = find_routes_to_examine(status.get_and_clear_improved_stops());
             for (auto& [route, stop_index] : current_round_routes) {
                 auto hop_on_stop = route.get().stop_sequence().at(stop_index);
-                auto arrival_time = status.earliest_arrival_time.at(hop_on_stop);
+                auto arrival_time = status.current_arrival_time_to_stop(hop_on_stop);
                 process_route(route, stop_index, arrival_time, status, destination);
             }
             // Third stage: Process transfers
             process_transfers(status);
         }
-        return build_trip(origin, destination, stop_labels);
+        return build_trip(origin, destination, status.get_label_manager());
     }
 } // namespace raptor
