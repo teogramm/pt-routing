@@ -137,14 +137,9 @@ namespace raptor {
             return shape_gtfs_id;
         }
 
-        [[nodiscard]] const StopTime& get_stop_time(const Stop& stop) const {
-            auto stop_time = std::ranges::find(stop_times, stop.get_gtfs_id(), [](auto&& st) {
-                return st.get_stop().get_gtfs_id();
-            });
-            if (stop_time == stop_times.end()) {
-                throw std::invalid_argument("Trip does not stop at given stop.");
-            }
-            return *stop_time;
+        [[nodiscard]] const StopTime& get_stop_time(const size_t index) const {
+            auto& stop_time = stop_times.at(index);
+            return stop_time;
         }
 
         // TODO: Check this, since we instantiate GTFS trips, comparing the GTFS ID is not enough, we also need
