@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-
+#include "reconstruction.h"
 #include "schedule/Schedule.h"
 
 namespace raptor {
@@ -24,6 +24,12 @@ namespace raptor {
         Time arrival_time;
         std::optional<std::reference_wrapper<const Stop>> boarding_stop;
         std::optional<std::pair<std::reference_wrapper<const Route>, TripIndex>> route_and_trip_index;
+    };
+
+    struct JourneyInformationPTExtension {
+        const Route& route;
+        TripIndex trip_index;
+        StopIndex stop_index;
     };
 
     /**
@@ -178,9 +184,9 @@ namespace raptor {
                                         });
         }
 
-        void build_trip(const Stop& origin,
-                        const Stop& destination,
-                        const LabelManager& stop_labels);
+        std::vector<Movement> build_trip(const Stop& origin,
+                                         const Stop& destination,
+                                         const LabelManager& stop_labels);
         void process_transfers(RaptorStatus& status);
 
         void process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status,
@@ -217,8 +223,8 @@ namespace raptor {
         explicit Raptor(const Schedule& schedule);
 
 
-        void route(const Stop& origin, const Stop& destination,
-                   const Time& departure_time);
+        std::vector<Movement> route(const Stop& origin, const Stop& destination,
+                                    const Time& departure_time);
     };
 }
 

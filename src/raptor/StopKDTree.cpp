@@ -1,6 +1,6 @@
 #include <ranges>
 
-#include "raptor/schedule/Schedule.h"
+#include "schedule/Schedule.h"
 #include "raptor/StopKDTree.h"
 
 namespace raptor {

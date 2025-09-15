@@ -1,6 +1,5 @@
 #include <ranges>
 #include <vector>
-#include <iostream>
 
 #include "raptor/raptor.h"
 #include "raptor/stop.h"
@@ -91,37 +90,38 @@ namespace raptor {
         build_routes_serving_stop();
     }
 
-    void Raptor::build_trip(const Stop& origin, const Stop& destination,
-                            const LabelManager& stop_labels) {
+    std::vector<Movement> Raptor::build_trip(const Stop& origin, const Stop& destination,
+                                             const LabelManager& stop_labels) {
         auto current_stop = std::cref(destination);
-        int i = 0;
         auto journey_to_here = stop_labels.get_latest_label(current_stop);
         if (!journey_to_here.has_value()) {
-            std::cout << "No way to here found" << std::endl;
-            return;
+            return {};
         }
+        auto journey = std::vector<Movement>{};
         while (journey_to_here.has_value() && journey_to_here->boarding_stop.has_value()) {
             auto boarding_stop = journey_to_here->boarding_stop.value();
 
             if (journey_to_here->route_and_trip_index.has_value()) {
-                auto route = journey_to_here->route_and_trip_index.value().first;
-                auto& trip = route.get().get_trips().at(journey_to_here->route_and_trip_index.value().second);
-                std::cout << "Take " << route.get().get_short_name();
+                // PT Movement
+                auto route = journey_to_here->route_and_trip_index->first;
+                auto route_stops = route.get().stop_sequence();
+                auto& trip = route.get().get_trips().at(journey_to_here->route_and_trip_index->second);
+                // TODO: This can produce wrong results when a route travels through the same stop twice
+                auto from_stop = std::ranges::find(route_stops, boarding_stop);
+                auto to_stop = std::ranges::find(std::next(route_stops.begin(), 0), std::end(route_stops),
+                                                 current_stop.get());
+                auto from_stop_index = std::distance(std::begin(route_stops), from_stop);
+                auto to_stop_index = std::distance(std::begin(route_stops), to_stop);
+                journey.emplace(journey.begin(), PTMovement(trip, from_stop_index, to_stop_index, route));
             }
             else {
-                std::cout << "Walk";
+                journey.emplace(journey.begin(), WalkingMovement(boarding_stop, current_stop, {}));
             }
-
-            std::cout << " from " << boarding_stop.get().get_name() << " platform " << boarding_stop.get().
-                    get_platform_code() <<
-                    " to " << current_stop.get().get_name() << " platform " << current_stop.get().get_platform_code()
-                    << " " << std::format("{:%H-%M}", journey_to_here->arrival_time.get_sys_time());;
-
-            std::cout << std::endl;
 
             current_stop = journey_to_here->boarding_stop.value();
             journey_to_here = stop_labels.get_latest_label(current_stop);
         }
+        return journey;
     }
 
     void Raptor::process_transfers(RaptorStatus& status) {
@@ -212,8 +212,8 @@ namespace raptor {
     }
 
 
-    void Raptor::route(const Stop& origin, const Stop& destination,
-                       const Time& departure_time) {
+    std::vector<Movement> Raptor::route(const Stop& origin, const Stop& destination,
+                                        const Time& departure_time) {
         auto status = RaptorStatus{};
         auto& stop_labels = status.label_manager;
         status.n_round = 0;
@@ -236,6 +236,6 @@ namespace raptor {
             // Third stage: Process transfers
             process_transfers(status);
         }
-        build_trip(origin, destination, stop_labels);
+        return build_trip(origin, destination, stop_labels);
     }
 } // namespace raptor
