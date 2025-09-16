@@ -186,7 +186,7 @@ namespace raptor {
             return old_improved_stops;
         }
 
-        const std::unordered_set<std::reference_wrapper<const Stop>>& get_improved_stops() const {
+        std::unordered_set<std::reference_wrapper<const Stop>> get_improved_stops() const {
             return improved_stops;
         }
 
