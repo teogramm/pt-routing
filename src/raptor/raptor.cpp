@@ -145,10 +145,6 @@ namespace raptor {
             auto n_stops = trip->get_stop_times().size();
             auto trip_index = std::distance(route_trips.begin(), trip);
             // Iterate over all the next stops in the trip and update the arrival times
-            while (current_stoptime != sentinel) {
-                const auto& current_stop = current_stoptime->get_stop();
-                const auto current_arrival_time = current_stoptime->get_arrival_time();
-                const auto current_departure_time = current_stoptime->get_departure_time();
             while (current_stop_idx < n_stops) {
                 const auto& current_stoptime = trip->get_stop_time(current_stop_idx);
                 const auto& current_stop = current_stoptime.get_stop();
@@ -156,9 +152,6 @@ namespace raptor {
                 const auto current_departure_time = current_stoptime.get_departure_time();
 
                 // Try to improve the current journey
-                auto current_journey_improved = status.try_improve_stop(current_stop, current_arrival_time,
-                                                                        hop_on_stop,
-                                                                        std::make_pair(std::cref(route), trip_index));
                 auto improved = status.try_improve_stop(current_stop, current_arrival_time,
                                         hop_on_stop,
                                         std::make_pair(std::cref(route), trip_index));
@@ -187,6 +180,9 @@ namespace raptor {
     std::vector<Movement> Raptor::route(const Stop& origin, const Stop& destination,
                                         const Time& departure_time) {
         auto status = RaptorStatus{origin, destination, departure_time};
+        /* Since we don't consider a foot transfer to actually count as a transfer we must process all transfers from
+         * the origin stop here, otherwise they will never be processed. */
+        process_transfers(status);
         while (status.have_stops_to_improve()) {
             // First stage: set t_k = t_k-1
             status.new_round();
@@ -194,8 +190,7 @@ namespace raptor {
             auto current_round_routes = find_routes_to_examine(status.get_and_clear_improved_stops());
             for (auto& [route, stop_index] : current_round_routes) {
                 auto hop_on_stop = route.get().stop_sequence().at(stop_index);
-                auto arrival_time = status.current_arrival_time_to_stop(hop_on_stop);
-                process_route(route, stop_index, arrival_time, status, destination);
+                const auto hop_on_time = status.previous_arrival_time_to_stop(hop_on_stop);
                 process_route(route, stop_index, hop_on_time, status);
             }
             // Third stage: Process transfers
