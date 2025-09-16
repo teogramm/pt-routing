@@ -157,6 +157,7 @@ namespace raptor {
 
         int new_round() {
             n_round++;
+            label_manager.new_round();
             return n_round;
         }
 
