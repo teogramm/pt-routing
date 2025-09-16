@@ -143,6 +143,10 @@ namespace raptor {
     public:
         RaptorStatus() = delete;
 
+        // Copying this object is probably an error. Delete to avoid doing it by mistake.
+        RaptorStatus(const RaptorStatus& other) = delete;
+        RaptorStatus& operator=(const RaptorStatus& other) = delete;
+
         RaptorStatus(const Stop& origin_stop, const Stop& destination, const Time& departure_time) :
             destination(destination) {
             // TODO: Remove the need for nullopt boarding_stop
