@@ -273,8 +273,7 @@ namespace raptor {
                                          const LabelManager& stop_labels);
         void process_transfers(RaptorStatus& status);
 
-        void process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status,
-                           const Stop& destination);
+        void process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status);
 
 
         template <std::ranges::input_range R>

@@ -133,49 +133,52 @@ namespace raptor {
         }
     }
 
-    void Raptor::process_route(const Route& route, StopIndex hop_on_stop_idx, Time hop_on_time, RaptorStatus& status,
-                               const Stop& destination) {
+    void Raptor::process_route(const Route& route, const StopIndex hop_on_stop_idx, const Time hop_on_time,
+                               RaptorStatus& status) {
         auto hop_on_stop = route.stop_sequence().at(hop_on_stop_idx);
         // Find the earliest trip of the route that we can hop on from this stop
         const auto& route_trips = route.get_trips();
         // TODO: Check with upper_bound
         if (auto trip = find_earliest_trip(route_trips, hop_on_time, hop_on_stop_idx);
             trip != route_trips.end()) {
-            auto current_stoptime = std::ranges::next(trip->get_stop_times().begin(), hop_on_stop_idx);
+            auto current_stop_idx = hop_on_stop_idx + 1;
+            auto n_stops = trip->get_stop_times().size();
             auto trip_index = std::distance(route_trips.begin(), trip);
-            assert(current_stoptime != trip->get_stop_times().end());
-            auto sentinel = std::ranges::end(trip->get_stop_times());
             // Iterate over all the next stops in the trip and update the arrival times
             while (current_stoptime != sentinel) {
                 const auto& current_stop = current_stoptime->get_stop();
                 const auto current_arrival_time = current_stoptime->get_arrival_time();
                 const auto current_departure_time = current_stoptime->get_departure_time();
+            while (current_stop_idx < n_stops) {
+                const auto& current_stoptime = trip->get_stop_time(current_stop_idx);
+                const auto& current_stop = current_stoptime.get_stop();
+                const auto current_arrival_time = current_stoptime.get_arrival_time();
+                const auto current_departure_time = current_stoptime.get_departure_time();
 
                 // Try to improve the current journey
                 auto current_journey_improved = status.try_improve_stop(current_stop, current_arrival_time,
                                                                         hop_on_stop,
                                                                         std::make_pair(std::cref(route), trip_index));
+                auto improved = status.try_improve_stop(current_stop, current_arrival_time,
+                                        hop_on_stop,
+                                        std::make_pair(std::cref(route), trip_index));
                 // If the optimal arrival time is before the current arrival time we might be able to catch
                 // an earlier trip at that stop.
                 // TODO: Check if this works
-                if (!current_journey_improved && status.
-                    might_catch_earlier_trip(current_stop, current_departure_time)) {
-                    const auto current_stop_index =
-                            std::ranges::distance(std::ranges::begin(trip->get_stop_times()), current_stoptime);
+                if (!improved && status.might_catch_earlier_trip(current_stop, current_departure_time)) {
                     auto earlier_trip =
-                            find_earliest_trip(route_trips, status.previous_arrival_time_to_stop(current_stop),
-                                               current_stop_index);
+                            find_earliest_trip(route_trips,
+                                               status.previous_arrival_time_to_stop(current_stop),
+                                               current_stop_idx);
+                    assert(earlier_trip != route_trips.end());
                     // From now on we are following a different trip
                     if (earlier_trip != trip) {
                         trip = earlier_trip;
-                        trip_index = std::distance(earlier_trip, trip);
-                        current_stoptime = std::ranges::next(trip->get_stop_times().begin(), current_stop_index);
+                        trip_index = std::ranges::distance(route_trips.begin(), trip);
                         hop_on_stop = current_stop;
-                        assert(current_stoptime != trip->get_stop_times().end());
-                        sentinel = trip->get_stop_times().end();
                     }
                 }
-                ++current_stoptime;
+                ++current_stop_idx;
             }
         }
     }
@@ -193,6 +196,7 @@ namespace raptor {
                 auto hop_on_stop = route.get().stop_sequence().at(stop_index);
                 auto arrival_time = status.current_arrival_time_to_stop(hop_on_stop);
                 process_route(route, stop_index, arrival_time, status, destination);
+                process_route(route, stop_index, hop_on_time, status);
             }
             // Third stage: Process transfers
             process_transfers(status);
