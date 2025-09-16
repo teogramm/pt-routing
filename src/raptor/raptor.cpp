@@ -111,7 +111,8 @@ namespace raptor {
                 journey.emplace(journey.begin(), PTMovement(trip, from_stop_index, to_stop_index, route));
             }
             else {
-                journey.emplace(journey.begin(), WalkingMovement(boarding_stop, current_stop, {}));
+                auto arrival_time = journey_to_here->arrival_time;
+                journey.emplace(journey.begin(), WalkingMovement(boarding_stop, current_stop, {}, arrival_time));
             }
 
             current_stop = journey_to_here->boarding_stop.value();

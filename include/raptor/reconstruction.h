@@ -81,14 +81,22 @@ namespace raptor {
     };
 
     class WalkingMovement final : public BaseMovement {
+        Time arrival_time;
+
     public:
         WalkingMovement() = delete;
 
-        WalkingMovement(const Stop& from_stop, const Stop& to_stop, std::vector<LatLng> shape) :
-            BaseMovement(from_stop, to_stop, std::move(shape)) {
+        WalkingMovement(const Stop& from_stop, const Stop& to_stop, std::vector<LatLng> shape,
+                        Time arrival_time) :
+            BaseMovement(from_stop, to_stop, std::move(shape)),
+            arrival_time(arrival_time) {
 
         }
 
+
+        [[nodiscard]] Time get_arrival_time() const {
+            return arrival_time;
+        }
     };
 
     using Movement = std::variant<WalkingMovement, PTMovement>;
