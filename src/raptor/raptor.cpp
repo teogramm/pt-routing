@@ -124,11 +124,10 @@ namespace raptor {
     void Raptor::process_transfers(RaptorStatus& status) {
         for (auto& origin_stop : status.get_improved_stops()) {
             auto arrival_time_to_origin = status.current_arrival_time_to_stop(origin_stop);
-            for (auto& [destination_stop, transfer_time] : transfers[origin_stop]) {
+            for (auto [destination_stop, transfer_time] : transfers[origin_stop]) {
                 auto arrival_time_with_transfer =
                         std::chrono::zoned_seconds(arrival_time_to_origin.get_time_zone(),
-                                                   arrival_time_to_origin.get_sys_time() +
-                                                   transfer_time);
+                                                   arrival_time_to_origin.get_sys_time() + transfer_time);
                 status.try_improve_stop(destination_stop, arrival_time_with_transfer, origin_stop, std::nullopt);
             }
         }
@@ -185,7 +184,6 @@ namespace raptor {
          * the origin stop here, otherwise they will never be processed. */
         process_transfers(status);
         while (status.have_stops_to_improve()) {
-            // First stage: set t_k = t_k-1
             status.new_round();
             // Second stage: Traverse all routes
             auto current_round_routes = find_routes_to_examine(status.get_and_clear_improved_stops());

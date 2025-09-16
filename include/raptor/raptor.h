@@ -165,12 +165,11 @@ namespace raptor {
         }
 
         bool try_improve_stop(const Stop& stop, const Time& new_arrival_time,
-                              const std::optional<std::reference_wrapper<const Stop>> boarding_stop,
+                              const std::optional<std::reference_wrapper<const Stop>>& boarding_stop,
                               const std::optional<std::pair<std::reference_wrapper<const Route>, TripIndex>>&
                               route_with_trip_index) {
             if (can_improve_current_journey_to_stop(new_arrival_time, stop)) {
-                label_manager.add_label(stop, new_arrival_time, boarding_stop,
-                                        route_with_trip_index);
+                label_manager.add_label(stop, new_arrival_time, boarding_stop, route_with_trip_index);
                 earliest_arrival_time[stop] = new_arrival_time;
                 improved_stops.insert(std::cref(stop));
                 return true;
@@ -284,7 +283,6 @@ namespace raptor {
                 std::remove_const_t<RouteWithStopIndex::first_type>, RouteWithStopIndex::second_type>();
             for (const Stop& stop : improved_stops) {
                 // It is possible that a stop is not served by any route but can be accessed only on foot.
-                // As such, use
                 auto& routes_for_stop = routes_serving_stop[stop];
                 for (auto [route, stop_index] : routes_for_stop) {
                     auto current_stop_index = route_to_earliest_stop.find(route);
