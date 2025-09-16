@@ -25,7 +25,7 @@ FetchContent_MakeAvailable(just_gtfs nanoflann)
 set(SOURCES src/raptor/raptor.cpp
         src/raptor/label_manager.cpp
         src/raptor/state.cpp
-        src/raptor/StopKDTree.cpp
+        src/transfers/StopKDTree.cpp
         src/schedule/Schedule.cpp
         src/schedule/gtfs.cpp
 )

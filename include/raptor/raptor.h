@@ -4,9 +4,10 @@
 #include <ranges>
 #include <unordered_map>
 
-#include "reconstruction.h"
+#include "raptor/reconstruction.h"
 #include "schedule/Schedule.h"
 #include "raptor/state.h"
+#include "transfers/transfers.h"
 
 namespace raptor {
 
@@ -22,19 +23,8 @@ namespace raptor {
          */
         void build_routes_serving_stop();
 
-        using StopWithDuration = std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>;
-
-        std::unordered_map<std::reference_wrapper<const Stop>,
-                           std::vector<StopWithDuration>> transfers;
-        void build_transfers();
-        void build_same_station_transfers();
-
-        /**
-         * Builds on-foot transfers between stops that do not have an existing transfer
-         */
-        void build_on_foot_transfers(double max_radius_km = 1);
-
         const Schedule& schedule;
+        TransferManager transfer_manager;
 
         /**
          * Find the earliest trip which departs from the given stop after the given departure time.
@@ -96,7 +86,7 @@ namespace raptor {
         }
 
     public:
-        explicit Raptor(const Schedule& schedule);
+        explicit Raptor(const Schedule& schedule, TransferManager tm);
 
 
         std::vector<Movement> route(const Stop& origin, const Stop& destination,

@@ -1,7 +1,7 @@
 #include <ranges>
 
 #include "schedule/Schedule.h"
-#include "raptor/StopKDTree.h"
+#include "transfers/transfers.h"
 
 namespace raptor {
 
@@ -35,7 +35,7 @@ namespace raptor {
         return ret_matches;
     }
 
-    std::vector<StopKDTree::StopWithDistance>
+    std::vector<StopWithDistance>
     StopKDTree::stops_in_radius(const Stop& stop, double radius_km) const {
         auto stop_cartesian_coords = to_cartesian(stop.get_coordinates());
 
@@ -50,7 +50,7 @@ namespace raptor {
         return results;
     }
 
-    std::vector<StopKDTree::StopsInRadius> StopKDTree::stops_in_radius(const double radius_km) const {
+    std::vector<StopsInRadius> StopKDTree::stops_in_radius(const double radius_km) const {
         auto results = std::vector<StopsInRadius>();
         results.reserve(stops.size());
 

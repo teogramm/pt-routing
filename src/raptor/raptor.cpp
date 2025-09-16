@@ -1,8 +1,8 @@
 #include <ranges>
+#include <utility>
 #include <vector>
 
 #include "raptor/raptor.h"
-#include "raptor/StopKDTree.h"
 
 namespace raptor {
     void Raptor::build_routes_serving_stop() {
@@ -19,69 +19,8 @@ namespace raptor {
         }
     }
 
-    void Raptor::build_transfers() {
-        /*TODO: Process GTFS transfers. Maybe all this should be done in the Schedule class.*/
-        build_same_station_transfers();
-        build_on_foot_transfers();
-    }
-
-    void Raptor::build_same_station_transfers() {
-        std::unordered_map<std::string, std::vector<std::reference_wrapper<const Stop>>> stops_per_parent_station;
-        for (const auto& stop : schedule.get_stops()) {
-            auto parent_station_id = std::string(stop.get_parent_stop_id());
-            if (!parent_station_id.empty()) {
-                stops_per_parent_station[parent_station_id].emplace_back(std::cref(stop));
-            }
-        }
-        // Create a transfer between all stops in the same parent station.
-        for (auto& stops : stops_per_parent_station | std::views::values) {
-            // Make sure to remove the stop itself from the list of stops that can be transferred
-            if (stops.size() > 1) {
-                for (auto from_stop : stops) {
-                    auto transfers_with_times = std::vector<std::pair<std::reference_wrapper<const Stop>,
-                                                                      std::chrono::seconds>>{};
-                    auto is_not_this_stop = [&from_stop](const Stop& other_stop) {
-                        return from_stop != other_stop;
-                    };
-                    std::ranges::transform(stops | std::views::filter(is_not_this_stop),
-                                           std::back_inserter(transfers_with_times),
-                                           [](const Stop& to_stop) {
-                                               return std::make_pair(std::cref(to_stop), std::chrono::seconds{60});
-                                           });
-                    this->transfers.emplace(from_stop, std::move(transfers_with_times));
-                }
-            }
-        }
-    }
-
-    void Raptor::build_on_foot_transfers(double max_radius_km) {
-        auto& stops = schedule.get_stops();
-        auto kd = StopKDTree(stops);
-        for (const auto& stop : stops) {
-            auto nearby_stops = kd.stops_in_radius(stop, max_radius_km);
-
-            auto& existing_transfers = transfers[stop];
-            auto no_existing_transfer = [&existing_transfers](const StopKDTree::StopWithDistance& to_stop) {
-                return std::ranges::all_of(existing_transfers,
-                                           [&to_stop](const Stop& existing_stop) {
-                                               return existing_stop != to_stop.stop;
-                                           }, &StopWithDuration::first);
-            };
-
-            std::ranges::transform(nearby_stops | std::views::filter(no_existing_transfer),
-                                   std::back_inserter(existing_transfers),
-                                   [](const StopKDTree::StopWithDistance& to_stop) {
-                                       // TODO: Customisable walking speed
-                                       const int transfer_time = std::round(3600 * to_stop.distance_m / 5 * 2 + 120);
-                                       return std::make_pair(std::cref(to_stop.stop),
-                                                             std::chrono::seconds{transfer_time});
-                                   });
-        }
-    }
-
-    Raptor::Raptor(const Schedule& schedule) :
-        schedule(schedule) {
-        build_transfers();
+    Raptor::Raptor(const Schedule& schedule, TransferManager tm) :
+        schedule(schedule), transfer_manager(std::move(tm)) {
         build_routes_serving_stop();
     }
 
@@ -123,7 +62,7 @@ namespace raptor {
     void Raptor::process_transfers(RaptorState& status) {
         for (auto& origin_stop : status.get_improved_stops()) {
             auto arrival_time_to_origin = status.current_arrival_time_to_stop(origin_stop);
-            for (auto [destination_stop, transfer_time] : transfers[origin_stop]) {
+            for (auto [destination_stop, transfer_time] : transfer_manager.get_transfers_from_stop(origin_stop)) {
                 auto arrival_time_with_transfer =
                         std::chrono::zoned_seconds(arrival_time_to_origin.get_time_zone(),
                                                    arrival_time_to_origin.get_sys_time() + transfer_time);
