@@ -3,6 +3,8 @@ project(pt_routing)
 
 set(CMAKE_CXX_STANDARD 20)
 
+find_package(Boost REQUIRED COMPONENTS graph)
+
 include(FetchContent)
 FetchContent_Declare(
         just_gtfs
@@ -37,9 +39,9 @@ if(PT_ROUTING_BUILD_TESTS)
 endif ()
 
 add_library(pt_routing_base INTERFACE)
-target_include_directories(pt_routing_base INTERFACE include)
+target_include_directories(pt_routing_base INTERFACE include ${Boost_INCLUDE_DIRS})
 target_sources(pt_routing_base INTERFACE ${SOURCES})
-target_link_libraries(pt_routing_base INTERFACE just_gtfs nanoflann::nanoflann)
+target_link_libraries(pt_routing_base INTERFACE just_gtfs nanoflann::nanoflann ${Boost_LIBRARIES})
 
 add_executable(pt_routing main.cpp)
 target_link_libraries(pt_routing PRIVATE pt_routing_base)
