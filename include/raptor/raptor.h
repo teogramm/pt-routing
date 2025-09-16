@@ -181,7 +181,7 @@ namespace raptor {
         bool might_catch_earlier_trip(const Stop& stop, const Time& departure_time) const {
             const auto previous_journey = label_manager.get_previous_label(stop);
             return previous_journey.has_value() &&
-                    previous_journey->arrival_time.get_sys_time() < departure_time.get_sys_time();
+                    previous_journey->arrival_time.get_sys_time() <= departure_time.get_sys_time();
         }
 
         std::unordered_set<std::reference_wrapper<const Stop>> get_and_clear_improved_stops() {
@@ -261,7 +261,7 @@ namespace raptor {
                 const std::chrono::zoned_seconds& departure_time,
                 const StopIndex stop_index) {
             return std::ranges::find_if(route_trips, [&departure_time](const auto& trip_departure_time) {
-                                            return trip_departure_time.get_sys_time() > departure_time.get_sys_time();
+                                            return trip_departure_time.get_sys_time() >= departure_time.get_sys_time();
                                         }, [&stop_index](const Trip& trip) {
                                             return std::ranges::next(trip.get_stop_times().begin(), stop_index)->
                                                     get_departure_time();
