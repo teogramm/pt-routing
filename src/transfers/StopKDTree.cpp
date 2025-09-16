@@ -35,10 +35,16 @@ namespace raptor {
         return ret_matches;
     }
 
+    std::vector<StopWithDistance> StopKDTree::stops_in_radius(double latitude, double longitude, double radius_km) {
+        auto stop_cartesian_coords = to_cartesian({latitude, longitude});
+        auto ret_matches = stops_in_radius(stop_cartesian_coords, radius_km);
+        auto results = convert_flann_results(ret_matches);
+        return results;
+    }
+
     std::vector<StopWithDistance>
     StopKDTree::stops_in_radius(const Stop& stop, double radius_km) const {
         auto stop_cartesian_coords = to_cartesian(stop.get_coordinates());
-
         auto ret_matches = stops_in_radius(stop_cartesian_coords, radius_km);
 
         auto is_not_search_stop = [this, stop](const nanoflann::ResultItem<uint32_t>& result_item) {

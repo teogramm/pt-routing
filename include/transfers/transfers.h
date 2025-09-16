@@ -17,13 +17,26 @@ namespace raptor {
         const std::vector<StopWithDistance> nearby_stops;
     };
 
+    class INearbyStopsFinder {
+    public:
+        virtual ~INearbyStopsFinder() = default;
+        virtual std::vector<StopWithDistance> stops_in_radius(double latitude, double longitude, double radius_km) = 0;
+    };
+
+    class IWalkingTimeCalculator {
+    public:
+        virtual ~IWalkingTimeCalculator() = default;
+        virtual std::chrono::seconds calculate_walking_time(double latitude_1, double longitude_1,
+                                                            double longitude_2, double latitude_2) = 0;
+    };
+
     /**
      * KD Tree for Stops.
      *
      * It transforms geographic coordinates to the cartesian coordinates to approximate the distance
      * (https://timvink.nl/blog/closest-coordinates/). As such, it should only be used for small distances.
      */
-    class StopKDTree {
+    class StopKDTree final : public INearbyStopsFinder {
         using AdaptorType =
         nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StopKDTree>, StopKDTree, 3>;
 
@@ -69,13 +82,14 @@ namespace raptor {
         }
 
     public:
-        StopKDTree() = delete;
 
         /**
          * Constructs a new index, including points for the given stops.
          * @param stops Reference to a deque container. Its lifetime must be longer than the object's.
          */
         explicit StopKDTree(const std::deque<Stop>& stops);
+
+        std::vector<StopWithDistance> stops_in_radius(double latitude, double longitude, double radius_km) override;
 
         /**
          * Calculates all stops in radius of the given stop.
@@ -118,6 +132,7 @@ namespace raptor {
         bool kdtree_get_bbox(BBOX&) const {
             return false;
         }
+
     };
 
     class TransferManager {
@@ -125,8 +140,9 @@ namespace raptor {
 
         using StopWithDuration = std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>;
         std::unordered_map<std::reference_wrapper<const Stop>, std::vector<StopWithDuration>> transfers;
-
         std::vector<StopWithDuration> empty;
+
+        std::unique_ptr<INearbyStopsFinder> nearby_stops_finder;
 
         void build_same_station_transfers() {
             std::unordered_map<std::string, std::vector<std::reference_wrapper<const Stop>>> stops_per_parent_station;
@@ -158,9 +174,9 @@ namespace raptor {
         }
 
         void build_on_foot_transfers(double max_radius_km) {
-            auto kd = StopKDTree(stops);
             for (const auto& stop : stops) {
-                auto nearby_stops = kd.stops_in_radius(stop, max_radius_km);
+                auto [latitude, longitude] = stop.get_coordinates();
+                auto nearby_stops = nearby_stops_finder->stops_in_radius(latitude, longitude, max_radius_km);
 
                 auto& existing_transfers = transfers[stop];
                 auto no_existing_transfer = [&existing_transfers](const StopWithDistance& to_stop) {
@@ -189,8 +205,9 @@ namespace raptor {
         }
 
     public:
-        explicit TransferManager(const std::deque<Stop>& stops) :
-            stops(stops) {
+        explicit TransferManager(const std::deque<Stop>& stops,
+                                 std::unique_ptr<INearbyStopsFinder> nearby_stops_finder) :
+            stops(stops), nearby_stops_finder(std::move(nearby_stops_finder)) {
             build_transfers();
         }
 
