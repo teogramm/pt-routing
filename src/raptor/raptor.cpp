@@ -34,11 +34,11 @@ namespace raptor {
                 stops_per_parent_station[parent_station_id].emplace_back(std::cref(stop));
             }
         }
-        // Create a transfer between all stops in the same parent station without a time cost.
+        // Create a transfer between all stops in the same parent station.
         for (auto& stops : stops_per_parent_station | std::views::values) {
             // Make sure to remove the stop itself from the list of stops that can be transferred
             if (stops.size() > 1) {
-                for (auto& from_stop : stops) {
+                for (auto from_stop : stops) {
                     auto transfers_with_times = std::vector<std::pair<std::reference_wrapper<const Stop>,
                                                                       std::chrono::seconds>>{};
                     auto is_not_this_stop = [&from_stop](const Stop& other_stop) {
@@ -66,8 +66,7 @@ namespace raptor {
                 return std::ranges::all_of(existing_transfers,
                                            [&to_stop](const Stop& existing_stop) {
                                                return existing_stop != to_stop.stop;
-                                           }, &std::pair<std::reference_wrapper<const Stop>,
-                                                         std::chrono::seconds>::first);
+                                           }, &StopWithDuration::first);
             };
 
             auto new_transfers = std::vector<std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>>();

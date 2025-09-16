@@ -129,6 +129,7 @@ namespace raptor {
             return stop_times;
         }
 
+        // TODO: Return string instead of string view
         [[nodiscard]] std::string_view get_trip_gtfs_id() const {
             return trip_gtfs_id;
         }

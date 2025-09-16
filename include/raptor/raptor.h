@@ -45,7 +45,7 @@ namespace raptor {
         LabelContainer current_round_labels;
         LabelContainer previous_round_labels;
 
-        static std::optional<JourneyInformation> get_label(const Stop& stop, const LabelContainer& labels) {
+        static std::optional<LabelType> get_label(const Stop& stop, const LabelContainer& labels) {
             const auto label = labels.find(stop);
             return label == labels.end() ? std::nullopt : std::make_optional(label->second);
         }
@@ -80,18 +80,18 @@ namespace raptor {
          */
         void add_label(const Stop& stop,
                        const Time& arrival_time,
-                       const std::optional<std::reference_wrapper<const Stop>> boarding_stop,
+                       const std::optional<std::reference_wrapper<const Stop>>& boarding_stop,
                        const std::optional<std::pair<std::reference_wrapper<const Route>, TripIndex>>
-                       route_with_trip_index) {
+                       & route_with_trip_index) {
             current_round_labels.insert_or_assign(
                     stop, JourneyInformation(arrival_time, boarding_stop, route_with_trip_index));
         }
 
-        std::optional<JourneyInformation> get_latest_label(const Stop& stop) const {
+        std::optional<LabelType> get_latest_label(const Stop& stop) const {
             return get_label(stop, current_round_labels);
         }
 
-        std::optional<JourneyInformation> get_previous_label(const Stop& stop) const {
+        std::optional<LabelType> get_previous_label(const Stop& stop) const {
             return get_label(stop, previous_round_labels);
         }
 
@@ -211,7 +211,7 @@ namespace raptor {
         //     StopIndex stop_idx;
         // };
 
-        // Make the reference wrapper const so it can be used to directly etract pairs from the unordered_map
+        // Make the reference wrapper const so it can be used to directly extract pairs from the unordered_map
         using RouteWithStopIndex = std::pair<const std::reference_wrapper<const Route>, StopIndex>;
 
         std::unordered_map<std::reference_wrapper<const Stop>, std::vector<RouteWithStopIndex>>
@@ -252,7 +252,7 @@ namespace raptor {
                 requires std::is_convertible_v<std::ranges::range_value_t<decltype(trip.get_stop_times())>,
                                                const StopTime&>;
             }
-        static std::ranges::borrowed_iterator_t<R&> find_earliest_trip(
+        static std::ranges::borrowed_iterator_t<R> find_earliest_trip(
                 R&& route_trips,
                 const std::chrono::zoned_seconds& departure_time,
                 const StopIndex stop_index) {
@@ -283,7 +283,7 @@ namespace raptor {
                 // It is possible that a stop is not served by any route but can be accessed only on foot.
                 // As such, use
                 auto& routes_for_stop = routes_serving_stop[stop];
-                for (auto& [route, stop_index] : routes_for_stop) {
+                for (auto [route, stop_index] : routes_for_stop) {
                     auto current_stop_index = route_to_earliest_stop.find(route);
                     auto new_route = current_stop_index == route_to_earliest_stop.end();
                     auto earlier_stop = !new_route && current_stop_index->second > stop_index;
