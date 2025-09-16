@@ -22,9 +22,13 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(just_gtfs nanoflann)
 
-set(SOURCES src/raptor/raptor.cpp src/schedule/Schedule.cpp
+set(SOURCES src/raptor/raptor.cpp
+        src/raptor/label_manager.cpp
+        src/raptor/state.cpp
+        src/raptor/StopKDTree.cpp
+        src/schedule/Schedule.cpp
         src/schedule/gtfs.cpp
-        src/raptor/StopKDTree.cpp)
+)
 
 option(PT_ROUTING_BUILD_TESTS "Build unit tests" ON)
 include(FetchContent)
@@ -33,7 +37,7 @@ FetchContent_Declare(
         URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
 )
 FetchContent_MakeAvailable(googletest)
-if(PT_ROUTING_BUILD_TESTS)
+if (PT_ROUTING_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif ()

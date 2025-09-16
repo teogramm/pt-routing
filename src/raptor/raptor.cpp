@@ -2,7 +2,6 @@
 #include <vector>
 
 #include "raptor/raptor.h"
-#include "raptor/stop.h"
 #include "raptor/StopKDTree.h"
 
 namespace raptor {
@@ -121,20 +120,20 @@ namespace raptor {
         return journey;
     }
 
-    void Raptor::process_transfers(RaptorStatus& status) {
+    void Raptor::process_transfers(RaptorState& status) {
         for (auto& origin_stop : status.get_improved_stops()) {
             auto arrival_time_to_origin = status.current_arrival_time_to_stop(origin_stop);
             for (auto [destination_stop, transfer_time] : transfers[origin_stop]) {
                 auto arrival_time_with_transfer =
                         std::chrono::zoned_seconds(arrival_time_to_origin.get_time_zone(),
                                                    arrival_time_to_origin.get_sys_time() + transfer_time);
-                status.try_improve_stop(destination_stop, arrival_time_with_transfer, origin_stop, std::nullopt);
+                status.try_improve_stop_arrival_time(destination_stop, arrival_time_with_transfer, origin_stop, std::nullopt);
             }
         }
     }
 
     void Raptor::process_route(const Route& route, const StopIndex hop_on_stop_idx, const Time hop_on_time,
-                               RaptorStatus& status) {
+                               RaptorState& status) {
         auto hop_on_stop = route.stop_sequence().at(hop_on_stop_idx);
         // Find the earliest trip of the route that we can hop on from this stop
         const auto& route_trips = route.get_trips();
@@ -152,7 +151,7 @@ namespace raptor {
                 const auto current_departure_time = current_stoptime.get_departure_time();
 
                 // Try to improve the current journey
-                auto improved = status.try_improve_stop(current_stop, current_arrival_time,
+                auto improved = status.try_improve_stop_arrival_time(current_stop, current_arrival_time,
                                         hop_on_stop,
                                         std::make_pair(std::cref(route), trip_index));
                 // If the optimal arrival time is before the current arrival time we might be able to catch
@@ -179,7 +178,7 @@ namespace raptor {
 
     std::vector<Movement> Raptor::route(const Stop& origin, const Stop& destination,
                                         const Time& departure_time) {
-        auto status = RaptorStatus{origin, destination, departure_time};
+        auto status = RaptorState{origin, destination, departure_time};
         /* Since we don't consider a foot transfer to actually count as a transfer we must process all transfers from
          * the origin stop here, otherwise they will never be processed. */
         process_transfers(status);
