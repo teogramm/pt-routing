@@ -69,17 +69,14 @@ namespace raptor {
                                            }, &StopWithDuration::first);
             };
 
-            auto new_transfers = std::vector<std::pair<std::reference_wrapper<const Stop>, std::chrono::seconds>>();
             std::ranges::transform(nearby_stops | std::views::filter(no_existing_transfer),
-                                   std::back_inserter(new_transfers),
+                                   std::back_inserter(existing_transfers),
                                    [](const StopKDTree::StopWithDistance& to_stop) {
                                        // TODO: Customisable walking speed
                                        const int transfer_time = std::round(3600 * to_stop.distance_m / 5 * 2 + 120);
                                        return std::make_pair(std::cref(to_stop.stop),
                                                              std::chrono::seconds{transfer_time});
                                    });
-            existing_transfers.insert(existing_transfers.end(), std::make_move_iterator(new_transfers.begin()),
-                                      std::make_move_iterator(new_transfers.end()));
         }
     }
 
