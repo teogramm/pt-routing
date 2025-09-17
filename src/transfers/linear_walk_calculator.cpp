@@ -20,7 +20,8 @@ namespace raptor {
         return R * c;
     }
 
-    LinearWalkTimeCalculator::LinearWalkTimeCalculator(const double walking_speed_km_h, const double time_scaling_factor) :
+    LinearWalkTimeCalculator::LinearWalkTimeCalculator(const double walking_speed_km_h,
+                                                       const double time_scaling_factor) :
         walking_speed(walking_speed_km_h), scaling_factor(time_scaling_factor) {
         if (walking_speed <= 0) {
             throw std::invalid_argument("Walking speed must be positive");
@@ -34,7 +35,7 @@ namespace raptor {
     }
 
     std::chrono::seconds LinearWalkTimeCalculator::calculate_walking_time(const double distance) {
-        const auto time = distance / walking_speed;
-        return std::chrono::seconds{static_cast<int>(std::ceil(time))};
+        const auto time = 3600 * distance / walking_speed;
+        return 2 * std::chrono::seconds{static_cast<int>(std::ceil(time))};
     }
 }
