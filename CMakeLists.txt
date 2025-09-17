@@ -26,6 +26,7 @@ set(SOURCES src/raptor/raptor.cpp
         src/raptor/label_manager.cpp
         src/raptor/state.cpp
         src/transfers/kd_tree.cpp
+        src/transfers/linear_walk_calculator.cpp
         src/transfers/transfers.cpp
         src/schedule/Schedule.cpp
         src/schedule/gtfs.cpp

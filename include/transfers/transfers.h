@@ -30,11 +30,12 @@ namespace raptor {
         using Factory = std::function<std::unique_ptr<NearbyStopsFinder>(const std::deque<Stop>&)>;
     };
 
-    class IWalkingTimeCalculator {
+    class WalkTimeCalculator {
     public:
-        virtual ~IWalkingTimeCalculator() = default;
+        virtual ~WalkTimeCalculator() = default;
         virtual std::chrono::seconds calculate_walking_time(double latitude_1, double longitude_1,
-                                                            double longitude_2, double latitude_2) = 0;
+                                                            double latitude_2, double longitude_2) = 0;
+        virtual std::chrono::seconds calculate_walking_time(double distance) = 0;
     };
 
     class TransferManager {
