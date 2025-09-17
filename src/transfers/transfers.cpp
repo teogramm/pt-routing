@@ -50,7 +50,7 @@ namespace raptor {
                                    std::back_inserter(existing_transfers),
                                    [this](const StopWithDistance& to_stop) {
                                        auto transfer_time =
-                                               walk_time_calculator->calculate_walking_time(to_stop.distance_m);
+                                               walk_time_calculator->calculate_walking_time(to_stop.distance_km);
                                        return std::make_pair(std::cref(to_stop.stop), transfer_time);
                                    });
         }

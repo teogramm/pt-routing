@@ -10,7 +10,7 @@ namespace raptor {
 
     struct StopWithDistance {
         const Stop& stop;
-        const double distance_m;
+        const double distance_km;
     };
 
     struct StopsInRadius {
