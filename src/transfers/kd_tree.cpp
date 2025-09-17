@@ -16,6 +16,13 @@ namespace raptor {
         index = std::make_unique<AdaptorType>(3, *this);
     }
 
+    NearbyStopsFinder::Factory StopKDTree::create_factory() {
+        // TODO: Avoid creating a new lamba at every invocation
+        return [](const std::deque<Stop>& stops) {
+            return std::make_unique<StopKDTree>(stops);
+        };
+    }
+
     std::array<double, 3> StopKDTree::to_cartesian(const std::pair<double, double>& coordinates) {
         auto latitude = coordinates.first * (M_PI / 180.0);
         auto longitude = coordinates.second * (M_PI / 180.0);

@@ -1,6 +1,7 @@
 #ifndef PT_ROUTING_TRANSFERS_H
 #define PT_ROUTING_TRANSFERS_H
 #include <chrono>
+#include <functional>
 
 #include <nanoflann.hpp>
 #include "schedule/Schedule.h"
@@ -17,10 +18,16 @@ namespace raptor {
         const std::vector<StopWithDistance> nearby_stops;
     };
 
-    class INearbyStopsFinder {
+    /**
+     * Interface for classes that support performing nearby stop searches.
+     */
+    class NearbyStopsFinder {
     public:
-        virtual ~INearbyStopsFinder() = default;
+        virtual ~NearbyStopsFinder() = default;
         virtual std::vector<StopWithDistance> stops_in_radius(double latitude, double longitude, double radius_km) = 0;
+
+        // Use a factory function, since a finder might require arguments be given in its constructor.
+        using Factory = std::function<std::unique_ptr<NearbyStopsFinder>(const std::deque<Stop>&)>;
     };
 
     class IWalkingTimeCalculator {
@@ -37,7 +44,7 @@ namespace raptor {
         std::unordered_map<std::reference_wrapper<const Stop>, std::vector<StopWithDuration>> transfers;
         std::vector<StopWithDuration> empty;
 
-        std::unique_ptr<INearbyStopsFinder> nearby_stops_finder;
+        std::unique_ptr<NearbyStopsFinder> nearby_stops_finder;
 
         void build_same_station_transfers();
 
@@ -50,8 +57,8 @@ namespace raptor {
 
     public:
         explicit TransferManager(const std::deque<Stop>& stops,
-                                 std::unique_ptr<INearbyStopsFinder> nearby_stops_finder) :
-            stops(stops), nearby_stops_finder(std::move(nearby_stops_finder)) {
+                                 const NearbyStopsFinder::Factory& nearby_stops_finder_factory) :
+            stops(stops), nearby_stops_finder(nearby_stops_finder_factory(stops)) {
             build_transfers();
         }
 

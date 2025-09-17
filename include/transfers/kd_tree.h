@@ -6,13 +6,13 @@
 #include "raptor/reconstruction.h"
 
 namespace raptor {
-   /**
-     * KD Tree for Stops.
-     *
-     * It transforms geographic coordinates to the cartesian coordinates to approximate the distance
-     * (https://timvink.nl/blog/closest-coordinates/). As such, it should only be used for small distances.
-     */
-    class StopKDTree final : public INearbyStopsFinder {
+    /**
+      * KD Tree for Stops.
+      *
+      * It transforms geographic coordinates to the cartesian coordinates to approximate the distance
+      * (https://timvink.nl/blog/closest-coordinates/). As such, it should only be used for small distances.
+      */
+    class StopKDTree final : public NearbyStopsFinder {
         using AdaptorType =
         nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StopKDTree>, StopKDTree, 3>;
 
@@ -41,7 +41,6 @@ namespace raptor {
         /**
          * Converts the results returned by the nanoflann library to a vector of StopWithDistance objects.
          *
-         *
          * @param flann_results Range containing the nanoflann:ResultItem objects.
          * @return
          */
@@ -58,13 +57,25 @@ namespace raptor {
         }
 
     public:
-
         /**
          * Constructs a new index, including points for the given stops.
          * @param stops Reference to a deque container. Its lifetime must be longer than the object's.
          */
         explicit StopKDTree(const std::deque<Stop>& stops);
 
+        /**
+         * Return a factory function which creates a StopKDTree.
+         */
+        static Factory create_factory();
+
+        /**
+         * Find all stops near the given geographic coordinates.
+         * @param latitude
+         * @param longitude
+         * @param radius_km Search radius in kilometres.
+         * @return Vector with search results, containing each stop inside the radius, along with the distance from
+         * the given stop.
+         */
         std::vector<StopWithDistance> stops_in_radius(double latitude, double longitude, double radius_km) override;
 
         /**
