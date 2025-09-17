@@ -49,8 +49,9 @@ namespace raptor {
             std::ranges::transform(nearby_stops | std::views::filter(no_existing_transfer),
                                    std::back_inserter(existing_transfers),
                                    [this](const StopWithDistance& to_stop) {
-                                       auto transfer_time =
+                                       auto walk_time =
                                                walk_time_calculator->calculate_walking_time(to_stop.distance_km);
+                                       auto transfer_time = walk_time + exit_station_duration;
                                        return std::make_pair(std::cref(to_stop.stop), transfer_time);
                                    });
         }

@@ -49,6 +49,7 @@ namespace raptor {
         std::unique_ptr<WalkTimeCalculator> walk_time_calculator;
 
         double max_radius_km = 1.0;
+        std::chrono::seconds exit_station_duration = std::chrono::seconds{120};
 
         void build_same_station_transfers();
 
