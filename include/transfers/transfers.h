@@ -46,20 +46,29 @@ namespace raptor {
         std::vector<StopWithDuration> empty;
 
         std::unique_ptr<NearbyStopsFinder> nearby_stops_finder;
+        std::unique_ptr<WalkTimeCalculator> walk_time_calculator;
+
+        double max_radius_km = 1.0;
 
         void build_same_station_transfers();
 
-        void build_on_foot_transfers(double max_radius_km);
+        /**
+         * Builds on-foot transfers between stops in the given range. Only builds transfers between stops for which a
+         * transfer has not been previously defined.
+         */
+        void build_on_foot_transfers();
 
         void build_transfers() {
             build_same_station_transfers();
-            build_on_foot_transfers(1);
+            build_on_foot_transfers();
         }
 
     public:
         explicit TransferManager(const std::deque<Stop>& stops,
-                                 const NearbyStopsFinder::Factory& nearby_stops_finder_factory) :
-            stops(stops), nearby_stops_finder(nearby_stops_finder_factory(stops)) {
+                                 const NearbyStopsFinder::Factory& nearby_stops_finder_factory,
+                                 std::unique_ptr<WalkTimeCalculator> walk_time_calculator) :
+            stops(stops), nearby_stops_finder(nearby_stops_finder_factory(stops)),
+            walk_time_calculator(std::move(walk_time_calculator)) {
             build_transfers();
         }
 

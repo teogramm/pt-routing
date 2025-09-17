@@ -11,16 +11,16 @@ namespace raptor {
             }
         }
         // Create a transfer between all stops in the same parent station.
-        for (auto& stops : stops_per_parent_station | std::views::values) {
+        for (auto& stops_in_station : stops_per_parent_station | std::views::values) {
             // Make sure to remove the stop itself from the list of stops that can be transferred
-            if (stops.size() > 1) {
-                for (auto from_stop : stops) {
+            if (stops_in_station.size() > 1) {
+                for (auto from_stop : stops_in_station) {
                     auto transfers_with_times = std::vector<std::pair<std::reference_wrapper<const Stop>,
                                                                       std::chrono::seconds>>{};
                     auto is_not_this_stop = [&from_stop](const Stop& other_stop) {
                         return from_stop != other_stop;
                     };
-                    std::ranges::transform(stops | std::views::filter(is_not_this_stop),
+                    std::ranges::transform(stops_in_station | std::views::filter(is_not_this_stop),
                                            std::back_inserter(transfers_with_times),
                                            [](const Stop& to_stop) {
                                                return std::make_pair(std::cref(to_stop), std::chrono::seconds{60});
@@ -31,12 +31,14 @@ namespace raptor {
         }
     }
 
-    void TransferManager::build_on_foot_transfers(double max_radius_km) {
-        for (const auto& stop : stops) {
-            auto [latitude, longitude] = stop.get_coordinates();
+    void TransferManager::build_on_foot_transfers() {
+        for (const auto& origin_stop : stops) {
+            auto [latitude, longitude] = origin_stop.get_coordinates();
             auto nearby_stops = nearby_stops_finder->stops_in_radius(latitude, longitude, max_radius_km);
 
-            auto& existing_transfers = transfers[stop];
+            auto& existing_transfers = transfers[origin_stop];
+            // Given a destination stop, it checks that there is no existing transfer defined between it and the
+            // origin stop.
             auto no_existing_transfer = [&existing_transfers](const StopWithDistance& to_stop) {
                 return std::ranges::all_of(existing_transfers,
                                            [&to_stop](const Stop& existing_stop) {
@@ -46,12 +48,10 @@ namespace raptor {
 
             std::ranges::transform(nearby_stops | std::views::filter(no_existing_transfer),
                                    std::back_inserter(existing_transfers),
-                                   [](const StopWithDistance& to_stop) {
-                                       // TODO: Customisable walking speed
-                                       const int transfer_time =
-                                               std::round(3600 * to_stop.distance_m / 5 * 2 + 120);
-                                       return std::make_pair(std::cref(to_stop.stop),
-                                                             std::chrono::seconds{transfer_time});
+                                   [this](const StopWithDistance& to_stop) {
+                                       auto transfer_time =
+                                               walk_time_calculator->calculate_walking_time(to_stop.distance_m);
+                                       return std::make_pair(std::cref(to_stop.stop), transfer_time);
                                    });
         }
     }

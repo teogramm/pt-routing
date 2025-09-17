@@ -20,8 +20,8 @@ namespace raptor {
         return R * c;
     }
 
-    LinearWalkTimeCalculator::LinearWalkTimeCalculator(const double walking_speed_km_h) :
-        walking_speed(walking_speed_km_h) {
+    LinearWalkTimeCalculator::LinearWalkTimeCalculator(const double walking_speed_km_h, const double time_scaling_factor) :
+        walking_speed(walking_speed_km_h), scaling_factor(time_scaling_factor) {
         if (walking_speed <= 0) {
             throw std::invalid_argument("Walking speed must be positive");
         }
