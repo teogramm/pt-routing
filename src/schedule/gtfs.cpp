@@ -172,7 +172,7 @@ namespace raptor::gtfs {
                                    [](const StopTime& st) {
                                        return std::cref(st.get_stop());
                                    });
-            auto route_id = trip_id_to_route_id.at(std::string(trip.get_trip_gtfs_id()));
+            auto& route_id = trip_id_to_route_id.at(trip.get_trip_gtfs_id());
             auto hash = Route::hash(stops, route_id);
             route_map[hash].emplace_back(std::move(trip));
         }
@@ -194,7 +194,7 @@ namespace raptor::gtfs {
             return route.route_id;
         });
         auto agencies_index = create_index(agencies, [](const Agency& agency) {
-            return std::string(agency.get_gtfs_id());
+            return agency.get_gtfs_id();
         });
         auto route_map = group_trips_by_route(std::move(trips), trip_id_to_route_id);
         // Create the actual route objects
@@ -202,7 +202,7 @@ namespace raptor::gtfs {
         routes.reserve(route_map.size());
         for (auto& route_trips : route_map | std::views::values) {
             // TODO: All trips for the same route should have the same gtfs id. Hash collisions?
-            auto route_gtfs_id = trip_id_to_route_id.at(std::string(route_trips[0].get_trip_gtfs_id()));
+            auto& route_gtfs_id = trip_id_to_route_id.at(route_trips[0].get_trip_gtfs_id());
             auto& gtfs_route = gtfs_route_index.at(route_gtfs_id);
             auto& agency = agencies_index.at(gtfs_route.get().agency_id);
 
@@ -235,7 +235,7 @@ namespace raptor::gtfs {
         auto& gtfs_times = feed.get_stop_times();
         // Assemble trips from the services
         auto stop_index = create_index(stops, [](const Stop& stop) {
-            return std::string(stop.get_gtfs_id());
+            return stop.get_gtfs_id();
         });
         auto [trips, trip_id_to_route_id] =
                 from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stop_index);

@@ -32,11 +32,11 @@ namespace raptor {
             coordinates({latitude, longitude}) {
         }
 
-        [[nodiscard]] std::string_view get_name() const {
+        [[nodiscard]] const std::string& get_name() const {
             return name;
         }
 
-        [[nodiscard]] std::string_view get_gtfs_id() const {
+        [[nodiscard]] const std::string& get_gtfs_id() const {
             return gtfs_id;
         }
 
@@ -44,11 +44,11 @@ namespace raptor {
             return std::make_pair(coordinates.latitude, coordinates.longitude);
         }
 
-        [[nodiscard]] std::string_view get_parent_stop_id() const {
+        [[nodiscard]] const std::string& get_parent_stop_id() const {
             return parent_stop_id;
         }
 
-        [[nodiscard]] std::string_view get_platform_code() const {
+        [[nodiscard]] const std::string& get_platform_code() const {
             return platform_code;
         }
 
@@ -103,7 +103,7 @@ namespace raptor {
             active_days(std::move(active_days)) {
         }
 
-        [[nodiscard]] std::string_view get_gtfs_id() const {
+        [[nodiscard]] const std::string& get_gtfs_id() const {
             return gtfs_id;
         }
 
@@ -140,12 +140,11 @@ namespace raptor {
             return stop_times;
         }
 
-        // TODO: Return string instead of string view
-        [[nodiscard]] std::string_view get_trip_gtfs_id() const {
+        [[nodiscard]] const std::string& get_trip_gtfs_id() const {
             return trip_gtfs_id;
         }
 
-        [[nodiscard]] std::string_view get_shape_gtfs_id() const {
+        [[nodiscard]] const std::string& get_shape_gtfs_id() const {
             return shape_gtfs_id;
         }
 
@@ -188,15 +187,15 @@ namespace raptor {
             return time_zone;
         }
 
-        [[nodiscard]] std::string_view get_gtfs_id() const {
+        [[nodiscard]] const std::string& get_gtfs_id() const {
             return gtfs_id;
         }
 
-        [[nodiscard]] std::string_view get_name() const {
+        [[nodiscard]] const std::string& get_name() const {
             return name;
         }
 
-        [[nodiscard]] std::string_view get_url() const {
+        [[nodiscard]] const std::string& get_url() const {
             return url;
         }
 
@@ -234,15 +233,15 @@ namespace raptor {
             return trips;
         }
 
-        [[nodiscard]] std::string_view get_short_name() const {
+        [[nodiscard]] const std::string& get_short_name() const {
             return short_name;
         }
 
-        [[nodiscard]] std::string_view get_long_name() const {
+        [[nodiscard]] const std::string& get_long_name() const {
             return long_name;
         }
 
-        [[nodiscard]] std::string_view get_gtfs_id() const {
+        [[nodiscard]] const std::string& get_gtfs_id() const {
             return gtfs_id;
         }
 

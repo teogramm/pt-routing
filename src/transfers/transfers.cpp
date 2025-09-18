@@ -5,7 +5,7 @@ namespace raptor {
     void TransferManager::build_same_station_transfers() {
         std::unordered_map<std::string, std::vector<std::reference_wrapper<const Stop>>> stops_per_parent_station;
         for (const auto& stop : stops) {
-            auto parent_station_id = std::string(stop.get_parent_stop_id());
+            auto& parent_station_id = stop.get_parent_stop_id();
             if (!parent_station_id.empty()) {
                 stops_per_parent_station[parent_station_id].emplace_back(std::cref(stop));
             }
