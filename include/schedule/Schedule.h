@@ -353,7 +353,7 @@ namespace raptor {
 template <>
 struct std::hash<raptor::Stop> {
     size_t operator()(const raptor::Stop& stop) const noexcept {
-        return std::hash<std::string_view>{}(stop.get_gtfs_id());
+        return std::hash<std::string>{}(stop.get_gtfs_id());
     }
 };
 
@@ -368,7 +368,7 @@ struct std::hash<std::reference_wrapper<const raptor::Stop>> {
 template <>
 struct std::hash<raptor::Route> {
     size_t operator()(const raptor::Route& route) const noexcept {
-        return std::hash<std::string_view>{}(route.get_gtfs_id());
+        return std::hash<std::string>{}(route.get_gtfs_id());
     }
 };
 
