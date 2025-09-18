@@ -21,6 +21,7 @@ namespace raptor {
             double latitude;
             double longitude;
         } coordinates;
+
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
              std::string parent_stop_id, std::string platform_code) :
@@ -67,6 +68,7 @@ namespace raptor {
         Time arrival_time;
         Time departure_time;
         const Stop& stop;
+
     public:
         StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) :
             arrival_time(arrival_time),
@@ -94,6 +96,7 @@ namespace raptor {
     class Service {
         std::string gtfs_id;
         std::vector<std::chrono::year_month_day> active_days;
+
     public:
         Service(std::string gtfs_id, std::vector<std::chrono::year_month_day>&& active_days) :
             gtfs_id(std::move(gtfs_id)),
@@ -124,6 +127,7 @@ namespace raptor {
         std::vector<StopTime> stop_times; /**< Stop times are completely owned by the trip */
         std::string trip_gtfs_id;
         std::string shape_gtfs_id;
+
     public:
         Trip(std::vector<StopTime>&& stop_times, std::string trip_gtfs_id,
              std::string shape_gtfs_id) :
@@ -173,6 +177,7 @@ namespace raptor {
         std::string name;
         std::string url;
         const std::chrono::time_zone* time_zone;
+
     public:
         Agency(std::string gtfs_id, std::string name,
                std::string url, const std::chrono::time_zone* time_zone) :
@@ -259,6 +264,33 @@ namespace raptor {
 
         static size_t hash(const std::vector<std::reference_wrapper<const Stop>>& stops,
                            const std::string& gtfs_route_id);
+    };
+
+    using StationEntrance = Stop;
+
+    /**
+     * A station is a grouping of multiple stops
+     */
+    class Station {
+        std::vector<std::reference_wrapper<const Stop>> stops;
+        std::vector<StationEntrance> entrances;
+        std::string gtfs_id;
+        std::string name;
+
+    public:
+        Station(std::string name, std::string gtfs_id,
+                std::vector<std::reference_wrapper<const Stop>>&& stops, std::vector<StationEntrance>&& entrances) :
+            stops(std::move(stops)), entrances(std::move(entrances)),
+            gtfs_id(std::move(gtfs_id)), name(std::move(name)) {
+        }
+
+        [[nodiscard]] const std::string& get_gtfs_id() const {
+            return gtfs_id;
+        }
+
+        [[nodiscard]] const std::string& get_name() const {
+            return name;
+        }
     };
 
 
