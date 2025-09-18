@@ -1,5 +1,6 @@
 #include "schedule/gtfs.h"
 
+#include <deque>
 #include <list>
 #include <ranges>
 
@@ -33,32 +34,12 @@ namespace raptor::gtfs {
         return index;
     }
 
-    /**
-     * Converts the given gtfs::Time to a duration object, corresponding to the hours after 00:00.
-     * Consider that GTFS times can be longer than 24 hours.
-     */
-
-    Time::duration gtfs_time_to_duration(const ::gtfs::Time& gtfs_time) {
-        auto [hours_gtfs, minutes_gtfs, seconds_gtfs] = gtfs_time.get_hh_mm_ss();
-        // Total duration is in seconds
-        return Time::duration(60 * 60 * hours_gtfs + 60 * minutes_gtfs + seconds_gtfs);
-    }
-
 
     /**
-     * Combines a gtfs::Time with a date and time zone to create a zoned_time.
+     * Converts just_gtfs stops into raptor Stops.
+     * @param gtfs_stops Stops collection provided by the just_gtfs library
+     * @return Vector of raptor Stop objects.
      */
-    Time gtfs_time_to_local_time(const ::gtfs::Time& gtfs_time,
-                                 const std::chrono::year_month_day& service_day,
-                                 const std::chrono::time_zone* time_zone) {
-        auto duration = gtfs_time_to_duration(gtfs_time);
-        // TODO: Check if earliest is the correct option for resolution. Off the top of my head it should be since
-        // the GTFS service day refers to the previous day, but must look into how earliest works.
-        auto time = Time(time_zone, std::chrono::local_days(service_day) + duration,
-                         std::chrono::choose::earliest);
-        return time;
-    }
-
     std::deque<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops) {
         //TODO: Handle different location types
         std::deque<Stop> stops;
@@ -85,27 +66,18 @@ namespace raptor::gtfs {
         return agencies;
     }
 
-    StopTime from_gtfs(const ::gtfs::StopTime& stop_time, const std::chrono::year_month_day& service_day,
-                       const std::chrono::time_zone* time_zone, const Stop& stop) {
-        auto time_equal = [](const ::gtfs::Time& time_a, const ::gtfs::Time& time_b) {
-            auto [a_hours, a_minutes, a_seconds] = time_a.get_hh_mm_ss();
-            auto [b_hours, b_minutes, b_seconds] = time_b.get_hh_mm_ss();
-            return (a_hours == b_hours) && (a_minutes == b_minutes) && (a_seconds == b_seconds);
-        };
-
-        // Often the departure time is the same as the arrival time. In this case we can skip the creation of an
-        // extra object and create just a copy instead.
-        // This is probably feed dependent, but if this happens, this optimization increases performance.
-        auto departure_time = gtfs_time_to_local_time(stop_time.departure_time, service_day, time_zone);
-        if (time_equal(stop_time.departure_time, stop_time.arrival_time)) {
-            auto arrival_time = departure_time;
-            return {arrival_time, departure_time, std::cref(stop)};
-        }
-        auto arrival_time = gtfs_time_to_local_time(stop_time.arrival_time, service_day, time_zone);
-        return {arrival_time, departure_time, std::cref(stop)};
-
-    }
-
+    /**
+     * Creates a specific instantiation of a GTFS trip.
+     * While GTFS objects are
+     * @param gtfs_trip GTFS trip.
+     * @param gtfs_stop_times GTFS stop times for the given trip.
+     * @param service_day Day for the created stop time object. GTFS service days are slightly different from normal
+     * days so the resulting stop times might be on a different day.
+     * @param time_zone Time zone of the values in the stop_times.
+     * @param stop_index Map of GTFS stop IDs to the corresponding Stop objects.
+     * @return The resulting stop times in the trips contain references to the stops in the index. Ensure proper
+     * ownership.
+     */
     Trip from_gtfs(const ::gtfs::Trip& gtfs_trip,
                    const std::vector<std::reference_wrapper<const ::gtfs::StopTime>>& gtfs_stop_times,
                    const std::chrono::year_month_day& service_day, const std::chrono::time_zone* time_zone,
@@ -140,6 +112,15 @@ namespace raptor::gtfs {
         return stop_times_by_trip;
     }
 
+    /**
+     * Converts the given GTFS trip objects to raptor Trips.
+     * @param gtfs_trips
+     * @param services Map of GTFS service ids to the corresponding Service objects.
+     * @param gtfs_stop_times The GTFS stop times that will be assigned to the trips.
+     * @param time_zone Time zone for all the stop times.
+     * @param stop_index Map from a stop's GTFS ID to the stop object.
+     * @return
+     */
     std::pair<std::vector<Trip>, std::unordered_map<trip_id, route_id>>
     from_gtfs(
             const ::gtfs::Trips& gtfs_trips,
@@ -198,6 +179,13 @@ namespace raptor::gtfs {
         return route_map;
     }
 
+    /**
+     * Creates Route objects using existing Trip objects and the GTFS route information.
+     * @param trips Vector of Trip objects that will be assigned to the routes.
+     * @param trip_id_to_route_id Map matching each trip's GTFS ID to the corresponding route's GTFS ID.
+     * @param gtfs_routes GTFS Route objects, used for getting additional information about the routes.
+     * @return
+     */
     std::vector<Route> from_gtfs(std::vector<Trip>&& trips,
                                  const std::unordered_map<trip_id, route_id>& trip_id_to_route_id,
                                  const std::deque<Agency>& agencies,
