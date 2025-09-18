@@ -33,7 +33,7 @@ namespace raptor {
 
 
 std::size_t std::hash<std::vector<std::reference_wrapper<const raptor::Stop>>>::operator()(
-        const std::vector<std::reference_wrapper<const raptor::Stop>>& stops) const {
+        const std::vector<std::reference_wrapper<const raptor::Stop>>& stops) const noexcept {
     auto hasher = std::hash<std::reference_wrapper<const raptor::Stop>>{};
     std::size_t seed = 0;
     for (const auto& stop : stops) {

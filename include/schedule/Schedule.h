@@ -4,14 +4,23 @@
 #include <algorithm>
 #include <chrono>
 #include <deque>
-#include <utility>
 #include <string>
+#include <utility>
 
 
 namespace raptor {
     using Time = std::chrono::zoned_seconds;
 
     class Stop {
+        std::string name;
+        std::string gtfs_id;
+        std::string parent_stop_id;
+        std::string platform_code;
+
+        struct {
+            double latitude;
+            double longitude;
+        } coordinates;
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
              std::string parent_stop_id, std::string platform_code) :
@@ -42,25 +51,22 @@ namespace raptor {
             return platform_code;
         }
 
-        friend bool operator==(const Stop& lhs, const Stop& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
-        friend bool operator!=(const Stop& lhs, const Stop& rhs) { return !(lhs == rhs); }
+        friend bool operator==(const Stop& lhs, const Stop& rhs) {
+            return lhs.gtfs_id == rhs.gtfs_id;
+        }
 
-    private:
-        std::string name;
-        std::string gtfs_id;
-        std::string parent_stop_id;
-        std::string platform_code;
-
-        struct {
-            double latitude;
-            double longitude;
-        } coordinates;
+        friend bool operator!=(const Stop& lhs, const Stop& rhs) {
+            return !(lhs == rhs);
+        }
     };
 
     /**
      * An instance of a specific vehicle arriving and departing from a stop.
      */
     class StopTime {
+        Time arrival_time;
+        Time departure_time;
+        const Stop& stop;
     public:
         StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) :
             arrival_time(arrival_time),
@@ -79,11 +85,6 @@ namespace raptor {
         [[nodiscard]] const Stop& get_stop() const {
             return stop;
         }
-
-    private:
-        Time arrival_time;
-        Time departure_time;
-        const Stop& stop;
     };
 
     /**
@@ -91,6 +92,8 @@ namespace raptor {
      * It can be defined either as a combination of a period and weekdays or by manually adding days to it.
      */
     class Service {
+        std::string gtfs_id;
+        std::vector<std::chrono::year_month_day> active_days;
     public:
         Service(std::string gtfs_id, std::vector<std::chrono::year_month_day>&& active_days) :
             gtfs_id(std::move(gtfs_id)),
@@ -105,18 +108,22 @@ namespace raptor {
             return active_days;
         }
 
-        friend bool operator==(const Service& lhs, const Service& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
-        friend bool operator!=(const Service& lhs, const Service& rhs) { return !(lhs == rhs); }
+        friend bool operator==(const Service& lhs, const Service& rhs) {
+            return lhs.gtfs_id == rhs.gtfs_id;
+        }
 
-    private:
-        std::string gtfs_id;
-        std::vector<std::chrono::year_month_day> active_days;
+        friend bool operator!=(const Service& lhs, const Service& rhs) {
+            return !(lhs == rhs);
+        }
     };
 
     /**
      * A journey made by a specific vehicle at a specific date.
      */
     class Trip {
+        std::vector<StopTime> stop_times; /**< Stop times are completely owned by the trip */
+        std::string trip_gtfs_id;
+        std::string shape_gtfs_id;
     public:
         Trip(std::vector<StopTime>&& stop_times, std::string trip_gtfs_id,
              std::string shape_gtfs_id) :
@@ -145,8 +152,13 @@ namespace raptor {
 
         // TODO: Check this, since we instantiate GTFS trips, comparing the GTFS ID is not enough, we also need
         // to care about he service day.
-        friend bool operator==(const Trip& lhs, const Trip& rhs) { return lhs.trip_gtfs_id == rhs.trip_gtfs_id; }
-        friend bool operator!=(const Trip& lhs, const Trip& rhs) { return !(lhs == rhs); }
+        friend bool operator==(const Trip& lhs, const Trip& rhs) {
+            return lhs.trip_gtfs_id == rhs.trip_gtfs_id;
+        }
+
+        friend bool operator!=(const Trip& lhs, const Trip& rhs) {
+            return !(lhs == rhs);
+        }
 
         /**
          * @return Departure time for the specific instantiation of this trip.
@@ -154,14 +166,13 @@ namespace raptor {
         [[nodiscard]] Time departure_time() const {
             return stop_times.front().get_departure_time();
         };
-
-    private:
-        std::vector<StopTime> stop_times; /**< Stop times are completely owned by the trip */
-        std::string trip_gtfs_id;
-        std::string shape_gtfs_id;
     };
 
     class Agency {
+        std::string gtfs_id;
+        std::string name;
+        std::string url;
+        const std::chrono::time_zone* time_zone;
     public:
         Agency(std::string gtfs_id, std::string name,
                std::string url, const std::chrono::time_zone* time_zone) :
@@ -184,14 +195,13 @@ namespace raptor {
             return url;
         }
 
-        friend bool operator==(const Agency& lhs, const Agency& rhs) { return lhs.gtfs_id == rhs.gtfs_id; }
-        friend bool operator!=(const Agency& lhs, const Agency& rhs) { return !(lhs == rhs); }
+        friend bool operator==(const Agency& lhs, const Agency& rhs) {
+            return lhs.gtfs_id == rhs.gtfs_id;
+        }
 
-    private:
-        std::string gtfs_id;
-        std::string name;
-        std::string url;
-        const std::chrono::time_zone* time_zone;
+        friend bool operator!=(const Agency& lhs, const Agency& rhs) {
+            return !(lhs == rhs);
+        }
     };
 
     /**
@@ -199,6 +209,12 @@ namespace raptor {
      * GTFS route ID.
      */
     class Route {
+        std::vector<Trip> trips;
+        std::string short_name;
+        std::string long_name;
+        std::string gtfs_id;
+        std::reference_wrapper<const Agency> agency;
+
     public:
         Route(std::vector<Trip>&& trips, std::string short_name,
               std::string long_name, std::string gtfs_id, const Agency& agency) :
@@ -243,13 +259,6 @@ namespace raptor {
 
         static size_t hash(const std::vector<std::reference_wrapper<const Stop>>& stops,
                            const std::string& gtfs_route_id);
-
-    private:
-        std::vector<Trip> trips;
-        std::string short_name;
-        std::string long_name;
-        std::string gtfs_id;
-        std::reference_wrapper<const Agency> agency;
     };
 
 
@@ -279,12 +288,11 @@ namespace raptor {
         const std::deque<Agency> agencies;
         const std::vector<Route> routes;
     };
-
 }
 
 template <>
 struct std::hash<raptor::Stop> {
-    size_t operator()(const raptor::Stop& stop) const {
+    size_t operator()(const raptor::Stop& stop) const noexcept {
         return std::hash<std::string_view>{}(stop.get_gtfs_id());
     }
 };
@@ -299,14 +307,14 @@ struct std::hash<std::reference_wrapper<const raptor::Stop>> {
 
 template <>
 struct std::hash<raptor::Route> {
-    size_t operator()(const raptor::Route& route) const {
+    size_t operator()(const raptor::Route& route) const noexcept {
         return std::hash<std::string_view>{}(route.get_gtfs_id());
     }
 };
 
 template <>
 struct std::hash<std::reference_wrapper<const raptor::Route>> {
-    size_t operator()(const raptor::Route& route) const {
+    size_t operator()(const raptor::Route& route) const noexcept {
         return std::hash<raptor::Route>{}(route);
     }
 };
@@ -320,7 +328,7 @@ struct std::hash<std::reference_wrapper<const raptor::Route>> {
 
 template <>
 struct std::hash<std::vector<std::reference_wrapper<const raptor::Stop>>> {
-    size_t operator()(const std::vector<std::reference_wrapper<const raptor::Stop>>& stop) const;
+    size_t operator()(const std::vector<std::reference_wrapper<const raptor::Stop>>& stop) const noexcept;
 };
 
 #endif //SCHEDULE_H
