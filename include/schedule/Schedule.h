@@ -292,6 +292,35 @@ namespace raptor {
         }
     };
 
+    /**
+     * Helper class for building stations by incrementally adding stops and entrances.
+     */
+    class StationBuilder {
+        std::vector<std::reference_wrapper<const Stop>> stops;
+        std::vector<StationEntrance> entrances;
+        std::string gtfs_id;
+        std::string name;
+
+    public:
+        StationBuilder() = delete;
+
+        StationBuilder(std::string name, std::string gtfs_id) :
+            name(std::move(name)), gtfs_id(std::move(gtfs_id)) {
+        }
+
+        void add_stop(const Stop& stop) {
+            stops.emplace_back(std::cref(stop));
+        }
+
+        void add_entrance(StationEntrance entrance) {
+            entrances.emplace_back(std::move(entrance));
+        }
+
+        Station build() {
+            return Station(std::move(name), std::move(gtfs_id), std::move(stops), std::move(entrances));
+        }
+    };
+
 
     class Schedule {
     public:
