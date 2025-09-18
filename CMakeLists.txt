@@ -28,6 +28,8 @@ set(SOURCES src/raptor/raptor.cpp
         src/transfers/kd_tree.cpp
         src/transfers/linear_walk_calculator.cpp
         src/transfers/transfers.cpp
+        src/schedule/gtfs.cpp
+        src/schedule/gtfs_calendar.cpp
         src/schedule/Schedule.cpp
         src/schedule/gtfs.cpp
 )
