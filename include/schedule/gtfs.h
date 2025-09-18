@@ -75,7 +75,7 @@ namespace raptor::gtfs {
      * @param services Map of GTFS service ids to the corresponding Service objects.
      * @param gtfs_stop_times The GTFS stop times that will be assigned to the trips.
      * @param time_zone Time zone for all the stop times.
-     * @param stops All stop objects.
+     * @param stop_index Map from a stop's GTFS ID to the stop object.
      * @return
      */
     std::pair<std::vector<Trip>, std::unordered_map<std::string, std::string>>
@@ -83,7 +83,7 @@ namespace raptor::gtfs {
               const std::unordered_map<std::string, Service>& services,
               const ::gtfs::StopTimes& gtfs_stop_times,
               const std::chrono::time_zone* time_zone,
-              const std::deque<Stop>& stops
+              const reference_index<std::string, const Stop>& stop_index
             );
 
     /**

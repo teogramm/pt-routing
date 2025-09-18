@@ -19,11 +19,11 @@ namespace raptor::gtfs {
      * @param selector Function which converts an object to the value used as a key in the resulting map
      */
     template <
-        std::ranges::random_access_range Range,
-        typename Value = std::ranges::range_value_t<Range>,
+        std::ranges::input_range R,
+        typename Value = std::ranges::range_value_t<R>,
         typename Selector,
         std::totally_ordered Key = std::invoke_result_t<Selector, Value>>
-    reference_index<Key, const Value> create_index(const Range& range, Selector selector) {
+    reference_index<Key, const Value> create_index(R&& range, Selector selector) {
         auto index = reference_index<Key, const Value>{};
         index.reserve(std::ranges::size(range));
         std::ranges::transform(range, std::inserter(index, index.begin()), [selector](const Value& item) {
@@ -186,7 +186,6 @@ namespace raptor::gtfs {
         if (to_date.has_value())
             limit_end = to_date.value();
 
-
         assert(limit_end >= limit_start);
 
         auto parse_calendar = [&limit_start, &limit_end, &service_dates_map](const ::gtfs::CalendarItem& calendar) {
@@ -219,15 +218,13 @@ namespace raptor::gtfs {
                 auto& active_days = service_dates_map.at(calendar_date.service_id);
                 if (calendar_date.exception_type == ::gtfs::CalendarDateException::Added) {
                     active_days.emplace_back(exception_date);
-                }
-                else {
+                } else {
                     // Find the given date and remove it
                     auto date_pos =
                             std::ranges::find(active_days, exception_date);
                     if (date_pos != active_days.end()) {
                         active_days.erase(date_pos);
-                    }
-                    else {
+                    } else {
                         throw std::runtime_error("Can't find specified date to remove from calendar_dates.txt");
                     }
                 }
@@ -290,13 +287,9 @@ namespace raptor::gtfs {
             const std::unordered_map<std::string, Service>& services,
             const ::gtfs::StopTimes& gtfs_stop_times,
             const std::chrono::time_zone* time_zone,
-            const std::deque<Stop>& stops) {
+            const reference_index<std::string, const Stop>& stop_index) {
         // Group stop times by the corresponding trip id
         auto stop_times_by_trip = group_stop_times_by_trip(gtfs_stop_times, gtfs_trips.size());
-        // Create index mapping stop gtfs ids to the stop object
-        auto stop_index = create_index(stops, [](const Stop& stop) {
-            return std::string(stop.get_gtfs_id());
-        });
         // Create a corresponding trip object for each day of the service
         // In addition, maintain a map for the route each trip belongs to
         auto trips = std::vector<Trip>{};
@@ -394,8 +387,11 @@ namespace raptor::gtfs {
         // Group stop times by trip
         auto& gtfs_times = feed.get_stop_times();
         // Assemble trips from the services
+        auto stop_index = create_index(stops, [](const Stop& stop) {
+            return std::string(stop.get_gtfs_id());
+        });
         auto [trips, trip_id_to_route_id] =
-                from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stops);
+                from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stop_index);
         auto routes = from_gtfs(std::move(trips), trip_id_to_route_id, agencies, feed.get_routes());
         return {std::move(agencies), std::move(stops), std::move(routes)};
     }
