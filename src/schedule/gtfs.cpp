@@ -1,9 +1,9 @@
-#include "schedule/gtfs.h"
-
 #include <deque>
 #include <list>
 #include <ranges>
 
+#include "schedule/gtfs.h"
+#include "schedule/construction.h"
 
 // TODO: Change references to shared ptr
 namespace raptor::gtfs {
