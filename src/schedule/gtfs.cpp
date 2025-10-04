@@ -59,7 +59,7 @@ namespace raptor::gtfs {
             if (gtfs_stop.location_type == ::gtfs::StopLocationType::StopOrPlatform) {
                 auto stop = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
                                  gtfs_stop.stop_lat, gtfs_stop.stop_lon,
-                                 gtfs_stop.parent_station, gtfs_stop.platform_code};
+                                 gtfs_stop.platform_code};
                 auto& inserted_stop = stops.emplace_back(std::move(stop));
                 if (station_builder != station_id_to_builder.end()) {
                     station_builder->second.add_stop(inserted_stop);
@@ -70,7 +70,7 @@ namespace raptor::gtfs {
             } else if (gtfs_stop.location_type == ::gtfs::StopLocationType::EntranceExit) {
                 auto entrance = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
                                      gtfs_stop.stop_lat, gtfs_stop.stop_lon,
-                                     gtfs_stop.parent_station, gtfs_stop.platform_code};
+                                     gtfs_stop.platform_code};
                 station_builder->second.add_entrance(std::move(entrance));
             }
         };

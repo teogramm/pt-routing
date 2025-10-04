@@ -8,7 +8,6 @@ namespace raptor {
     class Stop {
         std::string name;
         std::string gtfs_id;
-        std::string parent_stop_id;
         const Station* parent_station = nullptr;
         std::string platform_code;
 
@@ -25,10 +24,9 @@ namespace raptor {
 
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
-             std::string parent_stop_id, std::string platform_code) :
+             std::string platform_code) :
             name(std::move(name)),
             gtfs_id(std::move(gtfs_id)),
-            parent_stop_id(std::move(parent_stop_id)),
             platform_code(std::move(platform_code)),
             coordinates({latitude, longitude}) {
         }
@@ -45,8 +43,11 @@ namespace raptor {
             return std::make_pair(coordinates.latitude, coordinates.longitude);
         }
 
-        [[nodiscard]] const std::string& get_parent_stop_id() const {
-            return parent_stop_id;
+        [[nodiscard]] std::optional<std::reference_wrapper<const Station>> get_parent_station() const {
+            if (parent_station) {
+                return std::make_optional(std::cref(*parent_station));
+            }
+            return std::nullopt;
         }
 
         [[nodiscard]] const std::string& get_platform_code() const {
