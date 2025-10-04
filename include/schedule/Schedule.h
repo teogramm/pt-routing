@@ -154,7 +154,7 @@ namespace raptor {
         }
 
         // TODO: Check this, since we instantiate GTFS trips, comparing the GTFS ID is not enough, we also need
-        // to care about he service day.
+        // to care about 2he service day.
         friend bool operator==(const Trip& lhs, const Trip& rhs) {
             return lhs.trip_gtfs_id == rhs.trip_gtfs_id;
         }
@@ -268,11 +268,11 @@ namespace raptor {
     using StationEntrance = Stop;
 
     /**
-     * A station is a grouping of multiple stops
+     * A station is a grouping of multiple stops and entrances.
      */
     class Station {
-        std::vector<std::reference_wrapper<const Stop>> stops;
-        std::vector<StationEntrance> entrances;
+        std::vector<std::reference_wrapper<const Stop>> stops = {};
+        std::vector<StationEntrance> entrances = {};
         std::string gtfs_id;
         std::string name;
 
@@ -294,18 +294,28 @@ namespace raptor {
 
     /**
      * Helper class for building stations by incrementally adding stops and entrances.
+     * A station does not own its stops, but contains only references to them.
+     * A station owns its entrances.
      */
     class StationBuilder {
+        // TODO: Move to separate header
         std::vector<std::reference_wrapper<const Stop>> stops;
         std::vector<StationEntrance> entrances;
         std::string gtfs_id;
         std::string name;
-
     public:
         StationBuilder() = delete;
 
+        explicit StationBuilder(std::string gtfs_id) :
+            gtfs_id(std::move(gtfs_id)) {
+        }
+
         StationBuilder(std::string name, std::string gtfs_id) :
-            name(std::move(name)), gtfs_id(std::move(gtfs_id)) {
+            gtfs_id(std::move(gtfs_id)), name(std::move(name)) {
+        }
+
+        void set_name(std::string new_name) {
+            this->name = std::move(new_name);
         }
 
         void add_stop(const Stop& stop) {
@@ -317,7 +327,7 @@ namespace raptor {
         }
 
         Station build() {
-            return Station(std::move(name), std::move(gtfs_id), std::move(stops), std::move(entrances));
+            return {std::move(name), std::move(gtfs_id), std::move(stops), std::move(entrances)};
         }
     };
 
@@ -326,8 +336,10 @@ namespace raptor {
     public:
         Schedule() = delete;
 
-        Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops, std::vector<Route>&& routes) :
-            stops(std::move(stops)), agencies(std::move(agencies)), routes(std::move(routes)) {
+        Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops,
+                 std::vector<Station>&& stations, std::vector<Route>&& routes) :
+            agencies(std::move(agencies)), stops(std::move(stops)),
+            stations(std::move(stations)), routes(std::move(routes)) {
         }
 
         [[nodiscard]] const std::vector<Route>& get_routes() const {
@@ -339,13 +351,14 @@ namespace raptor {
         }
 
     private:
+        const std::deque<Agency> agencies;
         // Use a deque to ensure references stored in StopTimes are not invalidated
         // A vector could be used instead and since it's stored as const the references should not be invalidated.
         // In addition, the number of elements is known beforehand, so reserve calls can be made, ensuring that no
         // reallocation happens.
         // Nevertheless, using a deque is better, since it guarantees references will remain.
         const std::deque<Stop> stops;
-        const std::deque<Agency> agencies;
+        const std::vector<Station> stations;
         const std::vector<Route> routes;
     };
 }

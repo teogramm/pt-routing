@@ -34,26 +34,55 @@ namespace raptor::gtfs {
         return index;
     }
 
-
     /**
      * Converts just_gtfs stops into raptor Stops.
      * @param gtfs_stops Stops collection provided by the just_gtfs library
      * @return Vector of raptor Stop objects.
      */
-    std::deque<Stop> from_gtfs(const ::gtfs::Stops& gtfs_stops) {
+    std::pair<std::deque<Stop>,std::vector<Station>> from_gtfs(const ::gtfs::Stops& gtfs_stops) {
         //TODO: Handle different location types
-        std::deque<Stop> stops;
+        auto stops = std::deque<Stop>{};
+        auto station_id_to_builder = std::unordered_map<stop_id, StationBuilder>{};
 
-        auto is_platform = [](const ::gtfs::Stop& stop) {
-            return stop.location_type == ::gtfs::StopLocationType::StopOrPlatform;
+        auto process_gtfs_stop = [&stops, &station_id_to_builder](const ::gtfs::Stop& gtfs_stop) {
+            auto& station_id = gtfs_stop.location_type != ::gtfs::StopLocationType::Station
+                    ? gtfs_stop.parent_station
+                    : gtfs_stop.stop_id;
+            auto station_builder = station_id_to_builder.find(station_id);
+
+            // We haven't encountered this parent station before
+            if (!station_id.empty() && station_builder == station_id_to_builder.end()) {
+                station_builder = station_id_to_builder.emplace(station_id,
+                                                                StationBuilder(station_id)).first;
+            }
+
+            if (gtfs_stop.location_type == ::gtfs::StopLocationType::StopOrPlatform) {
+                auto stop = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
+                                 gtfs_stop.stop_lat, gtfs_stop.stop_lon,
+                                 gtfs_stop.parent_station, gtfs_stop.platform_code};
+                const auto& inserted_stop = stops.emplace_back(std::move(stop));
+                if (station_builder != station_id_to_builder.end()) {
+                    station_builder->second.add_stop(inserted_stop);
+                }
+            } else if (gtfs_stop.location_type == ::gtfs::StopLocationType::Station) {
+                // We have encountered its definition so set its name
+                station_builder->second.set_name(gtfs_stop.stop_name);
+            } else if (gtfs_stop.location_type == ::gtfs::StopLocationType::EntranceExit) {
+                auto entrance = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
+                                     gtfs_stop.stop_lat, gtfs_stop.stop_lon,
+                                     gtfs_stop.parent_station, gtfs_stop.platform_code};
+                station_builder->second.add_entrance(std::move(entrance));
+            }
         };
-        std::ranges::transform(gtfs_stops | std::views::filter(is_platform),
-                               std::back_inserter(stops), [](const ::gtfs::Stop& gtfs_stop) {
-                                   return Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
-                                               gtfs_stop.stop_lat, gtfs_stop.stop_lon,
-                                               gtfs_stop.parent_station, gtfs_stop.platform_code};
-                               });
-        return stops;
+
+        std::ranges::for_each(gtfs_stops, process_gtfs_stop);
+
+        auto stations = std::vector<Station>{};
+        stations.reserve(station_id_to_builder.size());
+        std::ranges::transform(station_id_to_builder | std::views::values, std::back_inserter(stations),
+                               &StationBuilder::build);
+
+        return {stops, stations};
     }
 
     std::deque<Agency> from_gtfs(const ::gtfs::Agencies& gtfs_agencies) {
@@ -227,7 +256,7 @@ namespace raptor::gtfs {
         auto agencies = from_gtfs(feed.get_agencies());
         auto timezone = agencies.front().get_time_zone();
 
-        auto stops = from_gtfs(feed.get_stops());
+        auto [stops, stations] = from_gtfs(feed.get_stops());
 
         auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates(),
                                   from_date, to_date);
@@ -240,6 +269,6 @@ namespace raptor::gtfs {
         auto [trips, trip_id_to_route_id] =
                 from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stop_index);
         auto routes = from_gtfs(std::move(trips), trip_id_to_route_id, agencies, feed.get_routes());
-        return {std::move(agencies), std::move(stops), std::move(routes)};
+        return {std::move(agencies), std::move(stops), std::move(stations), std::move(routes)};
     }
 }
