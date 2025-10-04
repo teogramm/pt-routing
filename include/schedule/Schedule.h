@@ -12,7 +12,6 @@
 
 namespace raptor {
 
-
     class Schedule {
     public:
         Schedule() = delete;

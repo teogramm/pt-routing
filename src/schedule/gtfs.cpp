@@ -60,7 +60,7 @@ namespace raptor::gtfs {
                 auto stop = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
                                  gtfs_stop.stop_lat, gtfs_stop.stop_lon,
                                  gtfs_stop.parent_station, gtfs_stop.platform_code};
-                const auto& inserted_stop = stops.emplace_back(std::move(stop));
+                auto& inserted_stop = stops.emplace_back(std::move(stop));
                 if (station_builder != station_id_to_builder.end()) {
                     station_builder->second.add_stop(inserted_stop);
                 }

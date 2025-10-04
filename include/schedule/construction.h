@@ -11,7 +11,7 @@ namespace raptor {
      */
     class StationBuilder {
         // TODO: Move to separate header
-        std::vector<std::reference_wrapper<const Stop>> stops;
+        std::vector<std::reference_wrapper<Stop>> stops;
         std::vector<StationEntrance> entrances;
         std::string gtfs_id;
         std::string name;
@@ -31,8 +31,8 @@ namespace raptor {
             this->name = std::move(new_name);
         }
 
-        void add_stop(const Stop& stop) {
-            stops.emplace_back(std::cref(stop));
+        void add_stop(Stop& stop) {
+            stops.emplace_back(std::ref(stop));
         }
 
         void add_entrance(StationEntrance entrance) {

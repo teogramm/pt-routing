@@ -2,6 +2,16 @@
 #define PT_ROUTING_STOP_H
 
 namespace raptor {
+
+    class StopManager {
+        public:
+    };
+
+    class StopStationMediator {
+        public:
+
+    };
+
     class Stop {
         std::string name;
         std::string gtfs_id;
@@ -12,7 +22,7 @@ namespace raptor {
             double latitude;
             double longitude;
         } coordinates;
-
+        friend StopStationMediator;
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
              std::string parent_stop_id, std::string platform_code) :
@@ -58,14 +68,13 @@ namespace raptor {
      * A station is a grouping of multiple stops and entrances.
      */
     class Station {
-        std::vector<std::reference_wrapper<const Stop>> stops = {};
+        std::vector<std::reference_wrapper<Stop>> stops = {};
         std::vector<StationEntrance> entrances = {};
         std::string gtfs_id;
         std::string name;
-
     public:
         Station(std::string name, std::string gtfs_id,
-                std::vector<std::reference_wrapper<const Stop>>&& stops, std::vector<StationEntrance>&& entrances) :
+                std::vector<std::reference_wrapper<Stop>>&& stops, std::vector<StationEntrance>&& entrances) :
             stops(std::move(stops)), entrances(std::move(entrances)),
             gtfs_id(std::move(gtfs_id)), name(std::move(name)) {
         }
