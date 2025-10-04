@@ -18,8 +18,8 @@ namespace raptor {
 
         Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops,
                  std::vector<Station>&& stations, std::vector<Route>&& routes) :
-            agencies(std::move(agencies)), stops(std::move(stops)),
-            stations(std::move(stations)), routes(std::move(routes)) {
+            agencies(std::move(agencies)), stop_manager(std::move(stops), std::move(stations)),
+            routes(std::move(routes)) {
         }
 
         [[nodiscard]] const std::vector<Route>& get_routes() const {
@@ -27,7 +27,7 @@ namespace raptor {
         }
 
         [[nodiscard]] const std::deque<Stop>& get_stops() const {
-            return stops;
+            return stop_manager.get_stops();
         }
 
     private:
@@ -37,8 +37,7 @@ namespace raptor {
         // In addition, the number of elements is known beforehand, so reserve calls can be made, ensuring that no
         // reallocation happens.
         // Nevertheless, using a deque is better, since it guarantees references will remain.
-        const std::deque<Stop> stops;
-        const std::vector<Station> stations;
+        StopManager stop_manager;
         const std::vector<Route> routes;
     };
 }

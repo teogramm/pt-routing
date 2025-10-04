@@ -82,7 +82,7 @@ namespace raptor::gtfs {
         std::ranges::transform(station_id_to_builder | std::views::values, std::back_inserter(stations),
                                &StationBuilder::build);
 
-        return {stops, stations};
+        return {std::move(stops), std::move(stations)};
     }
 
     std::deque<Agency> from_gtfs(const ::gtfs::Agencies& gtfs_agencies) {

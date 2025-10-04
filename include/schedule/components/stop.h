@@ -3,26 +3,26 @@
 
 namespace raptor {
 
-    class StopManager {
-        public:
-    };
-
-    class StopStationMediator {
-        public:
-
-    };
+    class Station;
 
     class Stop {
         std::string name;
         std::string gtfs_id;
         std::string parent_stop_id;
+        const Station* parent_station = nullptr;
         std::string platform_code;
 
         struct {
             double latitude;
             double longitude;
         } coordinates;
-        friend StopStationMediator;
+
+        void set_parent_station(const Station* station) {
+            parent_station = station;
+        }
+
+        friend class StopManager;
+
     public:
         Stop(std::string name, std::string gtfs_id, const double latitude, const double longitude,
              std::string parent_stop_id, std::string platform_code) :
@@ -72,6 +72,14 @@ namespace raptor {
         std::vector<StationEntrance> entrances = {};
         std::string gtfs_id;
         std::string name;
+
+        std::vector<std::reference_wrapper<Stop>> get_stops() {
+            return stops;
+        }
+
+        // Allow StopManager to modify the stops
+        friend class StopManager;
+
     public:
         Station(std::string name, std::string gtfs_id,
                 std::vector<std::reference_wrapper<Stop>>&& stops, std::vector<StationEntrance>&& entrances) :
@@ -85,6 +93,69 @@ namespace raptor {
 
         [[nodiscard]] const std::string& get_name() const {
             return name;
+        }
+
+        [[nodiscard]] const std::vector<std::reference_wrapper<Stop>>& get_stops() const {
+            return stops;
+        }
+    };
+
+
+    /**
+     * Class responsible for enforcing relationships between Stops and Stations.
+     */
+    class StopManager {
+        std::deque<Stop> stops;
+        std::vector<Station> stations;
+
+        void set_parent_stations() {
+            for (auto& station : stations) {
+                for (auto& stop : station.get_stops()) {
+                    stop.get().set_parent_station(&station);
+                }
+            }
+        }
+
+    public:
+        StopManager(std::deque<Stop>&& stops, std::vector<Station>&& stations) :
+            stops(std::move(stops)), stations(std::move(stations)) {
+            set_parent_stations();
+        }
+
+        StopManager(const StopManager& other) :
+            stops(other.stops), stations(other.stations) {
+            set_parent_stations();
+        }
+
+        StopManager(StopManager&& other) noexcept :
+            stops(std::move(other.stops)), stations(std::move(other.stations)) {
+            set_parent_stations();
+        }
+
+        StopManager& operator=(const StopManager& other) {
+            auto copy = StopManager(other);
+            std::swap(stations, copy.stations);
+            std::swap(stops, copy.stops);
+            return *this;
+        }
+
+        StopManager& operator=(StopManager&& other) noexcept {
+            // TODO: Implement this in a better way
+            stops = std::move(other.stops);
+            stations = std::move(other.stations);
+            set_parent_stations();
+            return *this;
+        }
+
+        // We don't need to do anything since both stops and stations are destroyed together.
+        ~StopManager() = default;
+
+        [[nodiscard]] const std::deque<Stop>& get_stops() const {
+            return stops;
+        }
+
+        [[nodiscard]] const std::vector<Station>& get_stations() const {
+            return stations;
         }
     };
 }
