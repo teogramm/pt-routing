@@ -1,6 +1,8 @@
 #ifndef PT_ROUTING_AGENCY_H
 #define PT_ROUTING_AGENCY_H
 
+#include <string>
+
 namespace raptor {
     class Agency {
         std::string gtfs_id;

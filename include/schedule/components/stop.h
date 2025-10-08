@@ -1,6 +1,7 @@
 #ifndef PT_ROUTING_STOP_H
 #define PT_ROUTING_STOP_H
 
+#include <deque>
 #include <unordered_map>
 
 namespace raptor {
@@ -155,12 +156,20 @@ namespace raptor {
             stop.set_parent_station(&station);
         }
 
-        void initialise_relationships(StationToChildStopsMap&);
+        void initialise_relationships(const StationToChildStopsMap& stops_per_station);
 
     public:
+        /**
+         * Initialise the stop manager with the given stops and stations. The manager takes ownership of the objects
+         * and initialises the parent/child relationship according to the given map.
+         * @param stops Stops to be used by the manager
+         * @param stations
+         * @param stops_per_station Map matching a parent station GTFS ID to multiple child station GTFS IDs
+         * @throws std::out_of_range If the GTFS ID of a stop or station in stops_per_station does not correspond
+         * to any stop or station.
+         */
         StopManager(std::deque<Stop>&& stops, std::vector<Station>&& stations,
-                    std::unordered_map<std::string,
-                                       std::vector<std::string>>& stops_per_station) :
+                    const StationToChildStopsMap& stops_per_station) :
             stops(std::move(stops)), stations(std::move(stations)) {
             initialise_relationships(stops_per_station);
         }
