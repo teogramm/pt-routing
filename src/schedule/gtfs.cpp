@@ -3,7 +3,6 @@
 #include <ranges>
 
 #include "schedule/gtfs.h"
-#include "schedule/construction.h"
 
 // TODO: Change references to shared ptr
 namespace raptor::gtfs {
@@ -12,79 +11,11 @@ namespace raptor::gtfs {
     using route_id = std::string;
     using calendar_id = std::string;
     using trip_id = std::string;
-    using stop_id = std::string;
+
 
     /**
-     * Create a map with values being const references.
-     * Keys are selected using the given selector functions.
-     * @param selector Function which converts an object to the value used as a key in the resulting map
+     * Create Agency objects from the given GTFS agencies.
      */
-    template <
-        std::ranges::input_range R,
-        typename Value = std::ranges::range_value_t<R>,
-        typename Selector,
-        std::totally_ordered Key = std::invoke_result_t<Selector, Value>>
-    reference_index<Key, const Value> create_index(R&& range, Selector selector) {
-        auto index = reference_index<Key, const Value>{};
-        index.reserve(std::ranges::size(range));
-        std::ranges::transform(range, std::inserter(index, index.begin()), [selector](const Value& item) {
-            auto item_id = selector(item);
-            return std::pair{item_id, std::cref(item)};
-        });
-        return index;
-    }
-
-    /**
-     * Converts just_gtfs stops into raptor Stops.
-     * @param gtfs_stops Stops collection provided by the just_gtfs library
-     * @return Vector of raptor Stop objects.
-     */
-    std::pair<std::deque<Stop>,std::vector<Station>> from_gtfs(const ::gtfs::Stops& gtfs_stops) {
-        //TODO: Handle different location types
-        auto stops = std::deque<Stop>{};
-        auto station_id_to_builder = std::unordered_map<stop_id, StationBuilder>{};
-
-        auto process_gtfs_stop = [&stops, &station_id_to_builder](const ::gtfs::Stop& gtfs_stop) {
-            auto& station_id = gtfs_stop.location_type != ::gtfs::StopLocationType::Station
-                    ? gtfs_stop.parent_station
-                    : gtfs_stop.stop_id;
-            auto station_builder = station_id_to_builder.find(station_id);
-
-            // We haven't encountered this parent station before
-            if (!station_id.empty() && station_builder == station_id_to_builder.end()) {
-                station_builder = station_id_to_builder.emplace(station_id,
-                                                                StationBuilder(station_id)).first;
-            }
-
-            if (gtfs_stop.location_type == ::gtfs::StopLocationType::StopOrPlatform) {
-                auto stop = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
-                                 gtfs_stop.stop_lat, gtfs_stop.stop_lon,
-                                 gtfs_stop.platform_code};
-                auto& inserted_stop = stops.emplace_back(std::move(stop));
-                if (station_builder != station_id_to_builder.end()) {
-                    station_builder->second.add_stop(inserted_stop);
-                }
-            } else if (gtfs_stop.location_type == ::gtfs::StopLocationType::Station) {
-                // We have encountered its definition so set its name
-                station_builder->second.set_name(gtfs_stop.stop_name);
-            } else if (gtfs_stop.location_type == ::gtfs::StopLocationType::EntranceExit) {
-                auto entrance = Stop{gtfs_stop.stop_name, gtfs_stop.stop_id,
-                                     gtfs_stop.stop_lat, gtfs_stop.stop_lon,
-                                     gtfs_stop.platform_code};
-                station_builder->second.add_entrance(std::move(entrance));
-            }
-        };
-
-        std::ranges::for_each(gtfs_stops, process_gtfs_stop);
-
-        auto stations = std::vector<Station>{};
-        stations.reserve(station_id_to_builder.size());
-        std::ranges::transform(station_id_to_builder | std::views::values, std::back_inserter(stations),
-                               &StationBuilder::build);
-
-        return {std::move(stops), std::move(stations)};
-    }
-
     std::deque<Agency> from_gtfs(const ::gtfs::Agencies& gtfs_agencies) {
         std::deque<Agency> agencies;
         std::ranges::transform(gtfs_agencies, std::back_inserter(agencies), [](const ::gtfs::Agency& gtfs_agency) {
@@ -256,7 +187,10 @@ namespace raptor::gtfs {
         auto agencies = from_gtfs(feed.get_agencies());
         auto timezone = agencies.front().get_time_zone();
 
-        auto [stops, stations] = from_gtfs(feed.get_stops());
+        // TODO: Avoid duplication of stop objects by consuming the GTFS feed.
+        auto feed_stops = feed.get_stops();
+        auto stop_manager = from_gtfs(std::move(feed_stops));
+        auto& stops = stop_manager.get_stops();
 
         auto services = from_gtfs(feed.get_calendar(), feed.get_calendar_dates(),
                                   from_date, to_date);
@@ -269,6 +203,6 @@ namespace raptor::gtfs {
         auto [trips, trip_id_to_route_id] =
                 from_gtfs(feed.get_trips(), services, gtfs_times, timezone, stop_index);
         auto routes = from_gtfs(std::move(trips), trip_id_to_route_id, agencies, feed.get_routes());
-        return {std::move(agencies), std::move(stops), std::move(stations), std::move(routes)};
+        return {std::move(agencies), std::move(stop_manager), std::move(routes)};
     }
 }

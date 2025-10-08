@@ -30,6 +30,7 @@ set(SOURCES src/raptor/raptor.cpp
         src/transfers/transfers.cpp
         src/schedule/gtfs.cpp
         src/schedule/gtfs_calendar.cpp
+        src/schedule/gtfs_stop.cpp
         src/schedule/gtfs_stop_time.cpp
         src/schedule/Schedule.cpp
         src/schedule/gtfs.cpp

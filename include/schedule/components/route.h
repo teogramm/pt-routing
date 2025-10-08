@@ -3,14 +3,14 @@
 #include <string>
 #include <vector>
 
-#include <schedule/components/trip.h>
 #include <schedule/components/agency.h>
+#include <schedule/components/trip.h>
 
 namespace raptor {
     /**
- * A route is a collection of trips, which stop at exactly the same stops, in the same order, and have the same
- * GTFS route ID.
- */
+     * A route is a collection of trips, which stop at exactly the same stops, in the same order, and have the same
+     * GTFS route ID.
+     */
     class Route {
         std::vector<Trip> trips;
         std::string short_name;

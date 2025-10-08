@@ -4,7 +4,7 @@
 
 using namespace raptor;
 
-auto stop = Stop("test", "", 59.21, 16.2, "", "");
+auto stop = Stop("test", "", 59.21, 16.2, "", {});
 
 TEST(LabelManager, RetainValuesAfterNewRound) {
     auto time = std::chrono::floor<Time::duration>(std::chrono::system_clock::now());

@@ -16,9 +16,8 @@ namespace raptor {
     public:
         Schedule() = delete;
 
-        Schedule(std::deque<Agency>&& agencies, std::deque<Stop>&& stops,
-                 std::vector<Station>&& stations, std::vector<Route>&& routes) :
-            agencies(std::move(agencies)), stop_manager(std::move(stops), std::move(stations)),
+        Schedule(std::deque<Agency>&& agencies, StopManager&& stop_manager, std::vector<Route>&& routes) :
+            agencies(std::move(agencies)), stop_manager(std::move(stop_manager)),
             routes(std::move(routes)) {
         }
 
@@ -32,16 +31,12 @@ namespace raptor {
 
     private:
         const std::deque<Agency> agencies;
-        // Use a deque to ensure references stored in StopTimes are not invalidated
-        // A vector could be used instead and since it's stored as const the references should not be invalidated.
-        // In addition, the number of elements is known beforehand, so reserve calls can be made, ensuring that no
-        // reallocation happens.
-        // Nevertheless, using a deque is better, since it guarantees references will remain.
         StopManager stop_manager;
         const std::vector<Route> routes;
     };
 }
 
+//TODO: Move hashes to respective files
 template <>
 struct std::hash<raptor::Stop> {
     size_t operator()(const raptor::Stop& stop) const noexcept {

@@ -8,11 +8,39 @@
 #include "Schedule.h"
 
 namespace raptor::gtfs {
+    using stop_id = std::string;
+
     /**
      * Maps an entity's ID to a reference wrapper of the given type.
      */
     template <typename K, typename V>
     using reference_index = std::unordered_map<K, std::reference_wrapper<V>>;
+
+    /**
+     * Create a map with values being const references.
+     * Keys are selected using the given selector functions.
+     * @param selector Function which converts an object to the value used as a key in the resulting map
+     */
+    template <
+        std::ranges::input_range R,
+        typename Value = std::ranges::range_value_t<R>,
+        typename Selector,
+        std::totally_ordered Key = std::invoke_result_t<Selector, Value>>
+    reference_index<Key, const Value> create_index(R&& range, Selector selector) {
+        auto index = reference_index<Key, const Value>{};
+        index.reserve(std::ranges::size(range));
+        std::ranges::transform(range, std::inserter(index, index.begin()), [selector](const Value& item) {
+            auto item_id = selector(item);
+            return std::pair{item_id, std::cref(item)};
+        });
+        return index;
+    }
+
+    /**
+    * Converts just_gtfs stops into raptor Stops.
+    * @param gtfs_stops Stops collection provided by the just_gtfs library
+    */
+    StopManager from_gtfs(::gtfs::Stops&& gtfs_stops);
 
     /**
      * Creates Service objects from GTFS calendar and calendar_dates.
