@@ -7,7 +7,7 @@
 namespace raptor {
 
     void StopManager::initialise_relationships(
-            std::unordered_map<std::string, std::vector<std::string>>& stops_per_station) {
+            const StationToChildStopsMap& stops_per_station) {
         auto stop_index = std::unordered_map<std::string, std::reference_wrapper<Stop>>{};
         for (auto& stop: stops) {
             stop_index.insert({stop.get_gtfs_id(), std::ref(stop)});
