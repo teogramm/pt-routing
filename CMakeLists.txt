@@ -48,16 +48,15 @@ if (PT_ROUTING_BUILD_TESTS)
     add_subdirectory(tests)
 endif ()
 
-add_library(pt_routing_base INTERFACE)
-target_include_directories(pt_routing_base INTERFACE include ${Boost_INCLUDE_DIRS})
-target_sources(pt_routing_base INTERFACE ${SOURCES})
-target_link_libraries(pt_routing_base INTERFACE just_gtfs nanoflann::nanoflann ${Boost_LIBRARIES})
-
-add_executable(pt_routing main.cpp)
-target_link_libraries(pt_routing PRIVATE pt_routing_base)
+add_library(pt_routing)
+target_include_directories(pt_routing PUBLIC include)
+target_link_directories(pt_routing PRIVATE ${Boost_INCLUDE_DIRS})
+target_sources(pt_routing PRIVATE ${SOURCES})
+target_link_libraries(pt_routing PUBLIC just_gtfs nanoflann::nanoflann ${Boost_LIBRARIES})
 target_compile_features(pt_routing PUBLIC cxx_std_20)
+
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/test.cpp")
     add_executable(test_exec test.cpp)
-    target_link_libraries(test_exec PRIVATE pt_routing_base)
+    target_link_libraries(test_exec PRIVATE pt_routing)
 endif ()
