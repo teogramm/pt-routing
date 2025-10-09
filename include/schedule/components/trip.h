@@ -1,5 +1,6 @@
 #ifndef PT_ROUTING_TRIP_H
 #define PT_ROUTING_TRIP_H
+#include <chrono>
 
 #include <schedule/components/stop.h>
 
@@ -14,7 +15,13 @@ namespace raptor {
         const Stop& stop;
 
     public:
-        StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) :
+        /**
+         * @param arrival_time Arrival time from the stop
+         * @param departure_time Departure time to the stop
+         * @param stop A reference to the stop is stored, so the given Stop object must outlive the newly created
+         * object.
+         */
+        StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) noexcept:
             arrival_time(arrival_time),
             departure_time(departure_time),
             stop(stop) {
@@ -66,6 +73,9 @@ namespace raptor {
 
     /**
      * A journey made by a specific vehicle at a specific date.
+     *
+     * In contrast to a GTFS trip, which is generic and can refer to a journey happening at the same times but on
+     * different dates, this object refers to a journey made at a specific date.
      */
     class Trip {
         std::vector<StopTime> stop_times; /**< Stop times are completely owned by the trip */
@@ -73,11 +83,22 @@ namespace raptor {
         std::string shape_gtfs_id;
 
     public:
+        /**
+         * Creates a new Trip object that travels through the given stops.
+         * @param stop_times Departure and arrival times at the stops the trip travels, in the order they are traversed.
+         * Must contain values.
+         * @param trip_gtfs_id GTFS ID of the trip
+         * @param shape_gtfs_id GTFS ID of the shape describing the trip
+         * @throw std::invalid_argument If a Trip is constructed without any stop times.
+         */
         Trip(std::vector<StopTime>&& stop_times, std::string trip_gtfs_id,
              std::string shape_gtfs_id) :
             stop_times(std::move(stop_times)),
             trip_gtfs_id(std::move(trip_gtfs_id)),
             shape_gtfs_id(std::move(shape_gtfs_id)) {
+            if (this->stop_times.empty()) {
+                throw std::invalid_argument("Trip must have at least one StopTime");
+            }
         }
 
         [[nodiscard]] const std::vector<StopTime>& get_stop_times() const {
@@ -92,15 +113,20 @@ namespace raptor {
             return shape_gtfs_id;
         }
 
+        /**
+         * Get the stop time object for the stop at the re
+         * @param index Sequence of the stop
+         * @return Reference to the StopTime object
+         * @throw std::out_of_range If the index is invalid
+         */
         [[nodiscard]] const StopTime& get_stop_time(const size_t index) const {
             auto& stop_time = stop_times.at(index);
             return stop_time;
         }
 
-        // TODO: Check this, since we instantiate GTFS trips, comparing the GTFS ID is not enough, we also need
-        // to care about 2he service day.
         friend bool operator==(const Trip& lhs, const Trip& rhs) {
-            return lhs.trip_gtfs_id == rhs.trip_gtfs_id;
+            // Also use the departure time, since a GTFS trip maps to multiple raptor trips
+            return lhs.trip_gtfs_id == rhs.trip_gtfs_id && lhs.departure_time() == rhs.departure_time();
         }
 
         friend bool operator!=(const Trip& lhs, const Trip& rhs) {
@@ -108,6 +134,7 @@ namespace raptor {
         }
 
         /**
+         * Gets the departure time of the trip from its origin stop.
          * @return Departure time for the specific instantiation of this trip.
          */
         [[nodiscard]] Time departure_time() const {
