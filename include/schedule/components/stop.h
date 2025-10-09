@@ -200,12 +200,21 @@ namespace raptor {
     };
 }
 
-template <>
-// requires std::is_convertible_v<T, const raptor::Station&>
-struct std::hash<std::reference_wrapper<raptor::Station>> {
+template<typename T>
+requires std::is_convertible_v<T, const raptor::Station&>
+struct std::hash<T> {
     size_t operator()(const raptor::Station& station) const noexcept {
         return std::hash<std::string>{}(station.get_gtfs_id());
     }
 };
+
+template <>
+struct std::hash<std::reference_wrapper<raptor::Station>> {
+    size_t operator()(const raptor::Station& station) const noexcept {
+        return std::hash<raptor::Station>{}(station);
+    }
+};
+
+
 
 #endif //PT_ROUTING_STOP_H
