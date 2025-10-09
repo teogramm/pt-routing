@@ -38,7 +38,7 @@ namespace raptor {
     std::vector<nanoflann::ResultItem<uint32_t>> StopKDTree::stops_in_radius(
             const std::array<double, 3>& cartesian_coords, double radius_km) const {
         std::vector<nanoflann::ResultItem<uint32_t>> ret_matches;
-        index->radiusSearch(cartesian_coords.data(), std::sqrt(radius_km), ret_matches);
+        index->radiusSearch(cartesian_coords.data(), radius_km*radius_km, ret_matches);
         return ret_matches;
     }
 
