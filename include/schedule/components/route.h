@@ -65,4 +65,18 @@ namespace raptor {
     };
 }
 
+template <>
+struct std::hash<raptor::Route> {
+    size_t operator()(const raptor::Route& route) const noexcept {
+        return std::hash<std::string>{}(route.get_gtfs_id());
+    }
+};
+
+template <>
+struct std::hash<std::reference_wrapper<const raptor::Route>> {
+    size_t operator()(const raptor::Route& route) const noexcept {
+        return std::hash<raptor::Route>{}(route);
+    }
+};
+
 #endif //PT_ROUTING_ROUTE_H

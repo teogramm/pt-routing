@@ -215,6 +215,25 @@ struct std::hash<std::reference_wrapper<raptor::Station>> {
     }
 };
 
+template <typename T>
+requires std::is_convertible_v<T, const raptor::Stop&>
+struct std::hash<T> {
+    size_t operator()(const raptor::Stop& stop) const noexcept {
+        return std::hash<std::string>{}(stop.get_gtfs_id());
+    }
+};
+
+template <>
+struct std::hash<std::reference_wrapper<const raptor::Stop>> {
+    size_t operator()(const std::reference_wrapper<const raptor::Stop>& stop) const noexcept {
+        return std::hash<raptor::Stop>{}(stop);
+    }
+};
+
+template <>
+struct std::hash<std::vector<std::reference_wrapper<const raptor::Stop>>> {
+    size_t operator()(const std::vector<std::reference_wrapper<const raptor::Stop>>& stop) const noexcept;
+};
 
 
 #endif //PT_ROUTING_STOP_H
