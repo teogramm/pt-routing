@@ -1,6 +1,7 @@
 #ifndef PT_ROUTING_AGENCY_H
 #define PT_ROUTING_AGENCY_H
 
+#include <chrono>
 #include <string>
 
 namespace raptor {

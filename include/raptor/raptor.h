@@ -47,6 +47,7 @@ namespace raptor {
                 R&& route_trips,
                 const std::chrono::zoned_seconds& departure_time,
                 const StopIndex stop_index) {
+            // TODO: Move to Route class
             return std::ranges::find_if(route_trips, [&departure_time](const auto& trip_departure_time) {
                                             return trip_departure_time.get_sys_time() >= departure_time.get_sys_time();
                                         }, [&stop_index](const Trip& trip) {

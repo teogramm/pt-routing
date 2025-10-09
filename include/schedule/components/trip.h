@@ -21,7 +21,7 @@ namespace raptor {
          * @param stop A reference to the stop is stored, so the given Stop object must outlive the newly created
          * object.
          */
-        StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) noexcept:
+        StopTime(const Time& arrival_time, const Time& departure_time, const Stop& stop) noexcept :
             arrival_time(arrival_time),
             departure_time(departure_time),
             stop(stop) {
@@ -114,7 +114,7 @@ namespace raptor {
         }
 
         /**
-         * Get the stop time object for the stop at the re
+         * Get the stop time object at the given sequence
          * @param index Sequence of the stop
          * @return Reference to the StopTime object
          * @throw std::out_of_range If the index is invalid
