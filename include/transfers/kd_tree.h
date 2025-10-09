@@ -7,10 +7,11 @@
 
 namespace raptor {
     /**
-      * KD Tree for Stops.
+      * Finds nearby stops by using a KD tree for Stops.
       *
       * It transforms geographic coordinates to the cartesian coordinates to approximate the distance
       * (https://timvink.nl/blog/closest-coordinates/). As such, it should only be used for small distances.
+      * In addition, the accuracy is limited.
       */
     class StopKDTree final : public NearbyStopsFinder {
         using AdaptorType =
@@ -51,7 +52,9 @@ namespace raptor {
             std::ranges::transform(flann_results, std::back_inserter(results),
                                    [this](const auto& match) {
                                        auto& stop = stops.at(match.first);
-                                       return StopWithDistance{stop, match.second};
+                                       // TODO: This seems correct but verify formally
+                                       auto distance = std::sqrt(match.second);
+                                       return StopWithDistance{stop, distance};
                                    });
             return results;
         }
