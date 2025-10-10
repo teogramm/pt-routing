@@ -1,7 +1,7 @@
 /**
  * Tests for the KD Tree-based NearbyStopsFinder.
- * Since the class
  */
+
 #include <gtest/gtest.h>
 
 #include <transfers/kd_tree.h>
@@ -15,7 +15,8 @@ auto stop2 = Stop{"stop2", "stop2", 59.15627986037491, 18.259634253669688, "", {
 auto stop3 = Stop{"stop3", "stop3", 59.15969531957956, 18.268264633334773, "", {}};
 
 TEST(KDTree, DoesNotReturnGivenStop) {
-    auto kd_tree = StopKDTree{{stop1, stop2}};
+    auto stops = std::deque{stop1, stop2};
+    auto kd_tree = StopKDTree{stops};
     // Actual distance is 882m, so give a generous radius
     auto nearby_stops = kd_tree.stops_in_radius(stop1, 2.0);
     ASSERT_EQ(nearby_stops.size(), 1);
@@ -23,7 +24,8 @@ TEST(KDTree, DoesNotReturnGivenStop) {
 }
 
 TEST(KDTree, CalculateStopsInRadius) {
-    auto kd_tree = StopKDTree{{stop1, stop2, stop3}};
+    auto stops = std::deque{stop1, stop2, stop3};
+    auto kd_tree = StopKDTree{stops};
     // Although there is some approximation in the Stop KD tree, it should not be too much
     auto nearby_stops = kd_tree.stops_in_radius(stop1, 1.3);
     ASSERT_EQ(nearby_stops.size(), 1);
@@ -32,7 +34,8 @@ TEST(KDTree, CalculateStopsInRadius) {
 
 TEST(KDTree, ReturnsStopsOnSearchCoordinates) {
     // When searching using coords it should not exclude stops directly on top of the search point
-    auto kd_tree = StopKDTree{{stop1, stop2, stop3}};
+    auto stops = std::deque{stop1, stop2, stop3};
+    auto kd_tree = StopKDTree{stops};
     auto nearby_stops = kd_tree.stops_in_radius(stop1.get_coordinates().first, stop1.get_coordinates().second, 99);
     ASSERT_EQ(nearby_stops.size(), 3);
     EXPECT_EQ(nearby_stops.at(0).stop, stop1);
@@ -40,7 +43,8 @@ TEST(KDTree, ReturnsStopsOnSearchCoordinates) {
 }
 
 TEST(KDTree, CalculateAllDistancePairs) {
-    auto kd_tree = StopKDTree{{stop1, stop2, stop3}};
+    auto stops = std::deque{stop1, stop2, stop3};
+    auto kd_tree = StopKDTree{stops};
     auto all_nearby_stops = kd_tree.stops_in_radius(99);
     ASSERT_EQ(all_nearby_stops.size(), 3);
     for (const auto& stop : all_nearby_stops) {
