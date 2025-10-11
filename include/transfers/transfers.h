@@ -69,8 +69,11 @@ namespace raptor {
          * Duration added to the walking time when calculating the transfer time between two stops.
          * It is intended to account for the time taken to exit and enter the stops.
          * It is added only once for each pair of stops.
+         * It is not added for transfers between stops with the same parent station.
          */
         std::chrono::seconds exit_station_duration = std::chrono::seconds{120};
+
+        std::chrono::seconds in_station_transfer_duration = std::chrono::seconds{60};
     };
 
     /**

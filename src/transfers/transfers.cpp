@@ -15,8 +15,8 @@ namespace raptor {
                                                                   std::chrono::seconds>>{};
                 std::ranges::transform(stops_in_station | std::views::filter(is_not_this_stop),
                                        std::back_inserter(transfers_with_times),
-                                       [](const Stop& to_stop) {
-                                           return std::make_pair(std::cref(to_stop), std::chrono::seconds{60});
+                                       [this](const Stop& to_stop) {
+                                           return std::make_pair(std::cref(to_stop), parameters.in_station_transfer_duration);
                                        });
                 this->transfers.emplace(from_stop, std::move(transfers_with_times));
             }
