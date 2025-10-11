@@ -27,6 +27,8 @@ namespace raptor {
          * linear path between points.
          * @param walking_speed_km_h Walking speed in kilometres per hour
          * @param time_scaling_factor Factor for multiplying calculated times. By default, times are not scaled.
+         * @throw std::invalid_argument If a non-positive walking speed is given
+         * @throw std::invalid_argument If a non-positive scaling factor is given
          */
         explicit LinearWalkTimeCalculator(double walking_speed_km_h, double time_scaling_factor = 1.0);
 
