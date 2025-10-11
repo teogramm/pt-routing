@@ -23,6 +23,11 @@ TEST(KDTree, DoesNotReturnGivenStop) {
     ASSERT_EQ(nearby_stops.at(0).stop, stop2);
 }
 
+TEST(KDTree, CannotCreateWithRValueStops) {
+    constexpr auto can_construct = std::is_constructible_v<StopKDTree, std::deque<Stop>&&>;
+    EXPECT_FALSE(can_construct);
+}
+
 TEST(KDTree, CalculateStopsInRadius) {
     auto stops = std::deque{stop1, stop2, stop3};
     auto kd_tree = StopKDTree{stops};

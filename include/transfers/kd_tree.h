@@ -60,6 +60,13 @@ namespace raptor {
         }
 
     public:
+
+        /**
+         * The class stores references to the given stops, so passing a temporary will result in those references
+         * becoming invalid.
+         */
+        explicit StopKDTree(std::deque<Stop>&&) = delete;
+
         /**
          * Constructs a new index, including points for the given stops.
          * @param stops Reference to a deque container. Its lifetime must be longer than the object's.
