@@ -46,7 +46,7 @@ TEST(KDTree, CalculateAllDistancePairs) {
     auto stops = std::deque{stop1, stop2, stop3};
     auto kd_tree = StopKDTree{stops};
     auto all_nearby_stops = kd_tree.stops_in_radius(99);
-    ASSERT_EQ(all_nearby_stops.size(), 3);
+    ASSERT_EQ(all_nearby_stops.size(), stops.size());
     for (const auto& stop : all_nearby_stops) {
         ASSERT_EQ(stop.nearby_stops.size(), all_nearby_stops.size() - 1);
     }
