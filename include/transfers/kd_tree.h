@@ -80,11 +80,11 @@ namespace raptor {
 
         /**
          * Find all stops near the given geographic coordinates.
-         * @param latitude
-         * @param longitude
+         * @param latitude Longitude of the centre point in decimal degrees.
+         * @param longitude Latitude of the centre point in decimal degrees.
          * @param radius_km Search radius in kilometres.
-         * @return Vector with search results, containing each stop inside the radius, along with the distance from
-         * the given stop.
+         * @return Vector with search results, containing each stop inside the radius, along with the straight-line
+         * distance from the given stop.
          */
         std::vector<StopWithDistance> stops_in_radius(double latitude, double longitude, double radius_km) override;
 
