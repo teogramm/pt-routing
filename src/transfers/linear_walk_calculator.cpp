@@ -7,11 +7,12 @@ namespace raptor {
                                                         double latitude_2, double longitude_2) {
         const double R = 6371;
         // Use the Haversine formula
-        double delta_phi = (latitude_2 - latitude_1) * M_PI / 180;
-        double delta_lambda = longitude_2 - longitude_1 * M_PI / 180;
+        double delta_lambda = (longitude_2 - longitude_1) * M_PI / 180;
 
         double phi_1 = latitude_1 * M_PI / 180;
         double phi_2 = latitude_2 * M_PI / 180;
+
+        auto delta_phi = phi_2 - phi_1;
 
         double a = std::pow(std::sin(delta_phi / 2), 2) + std::cos(phi_1) * std::cos(phi_2) *
                 std::pow(std::sin(delta_lambda / 2), 2);
