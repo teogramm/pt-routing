@@ -19,7 +19,6 @@ FetchContent_Declare(
         GIT_TAG v1.7.1
         EXCLUDE_FROM_ALL
 )
-
 FetchContent_MakeAvailable(just_gtfs nanoflann)
 
 set(SOURCES src/raptor/raptor.cpp
@@ -36,20 +35,17 @@ set(SOURCES src/raptor/raptor.cpp
         src/schedule/gtfs.cpp
 )
 
-option(PT_ROUTING_BUILD_TESTS "Build unit tests" ON)
-include(FetchContent)
-FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-)
-FetchContent_MakeAvailable(googletest)
+option(PT_ROUTING_BUILD_TESTS "Build unit tests" OFF)
 if (PT_ROUTING_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif ()
 
 add_library(pt_routing)
-target_include_directories(pt_routing PUBLIC include)
+target_sources(pt_routing
+        PUBLIC
+        FILE_SET HEADERS
+        BASE_DIRS include)
 target_link_directories(pt_routing PRIVATE ${Boost_INCLUDE_DIRS})
 target_sources(pt_routing PRIVATE ${SOURCES})
 target_link_libraries(pt_routing PUBLIC just_gtfs nanoflann::nanoflann ${Boost_LIBRARIES})
